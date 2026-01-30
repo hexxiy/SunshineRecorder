@@ -161,6 +161,33 @@ juce::AudioProcessorValueTreeState::ParameterLayout Parameters::createParameterL
         juce::AudioParameterFloatAttributes().withLabel("%")
     ));
 
+    // Delay Time (10-2000ms)
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{ParamIDs::delayTime, 1},
+        "Delay Time",
+        juce::NormalisableRange<float>(10.0f, 2000.0f, 1.0f, 0.4f),
+        300.0f,
+        juce::AudioParameterFloatAttributes().withLabel("ms")
+    ));
+
+    // Flutter (0-100%)
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{ParamIDs::flutter, 1},
+        "Flutter",
+        juce::NormalisableRange<float>(0.0f, 100.0f, 0.1f),
+        0.0f,
+        juce::AudioParameterFloatAttributes().withLabel("%")
+    ));
+
+    // Tape Hiss (0-100%)
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{ParamIDs::tapeHiss, 1},
+        "Tape Hiss",
+        juce::NormalisableRange<float>(0.0f, 100.0f, 0.1f),
+        0.0f,
+        juce::AudioParameterFloatAttributes().withLabel("%")
+    ));
+
     // Mix (0-100%)
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID{ParamIDs::mix, 1},
@@ -200,6 +227,10 @@ void Parameters::attachParameters(juce::AudioProcessorValueTreeState& apvts) {
     lfoRate = apvts.getRawParameterValue(ParamIDs::lfoRate);
     lfoWaveform = apvts.getRawParameterValue(ParamIDs::lfoWaveform);
     lfoAmount = apvts.getRawParameterValue(ParamIDs::lfoAmount);
+
+    delayTime = apvts.getRawParameterValue(ParamIDs::delayTime);
+    flutter   = apvts.getRawParameterValue(ParamIDs::flutter);
+    tapeHiss  = apvts.getRawParameterValue(ParamIDs::tapeHiss);
 
     reverb = apvts.getRawParameterValue(ParamIDs::reverb);
     feedback = apvts.getRawParameterValue(ParamIDs::feedback);

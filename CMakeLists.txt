@@ -35,6 +35,7 @@ target_sources(SunshineRecorder
         Source/DSP/Grain.cpp
         Source/DSP/GrainEngine.cpp
         Source/DSP/SampleBuffer.cpp
+        Source/DSP/TapeDelay.cpp
         Source/DSP/Voice.cpp
         Source/Parameters/Parameters.cpp
         Source/UI/OccultKnob.cpp

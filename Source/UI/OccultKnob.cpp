@@ -6,6 +6,7 @@ namespace palace {
 OccultKnob::OccultKnob(const juce::String& labelText) {
     slider.setSliderStyle(juce::Slider::RotaryVerticalDrag);
     slider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 60, 16);
+    slider.setBufferedToImage(true);
     addAndMakeVisible(slider);
 
     label.setText(labelText, juce::dontSendNotification);

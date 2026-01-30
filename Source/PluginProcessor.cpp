@@ -71,15 +71,15 @@ void PalaceAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
     // Initialize LFO
     lfo.prepare(sampleRate);
 
-    // Initialize feedback buffer
-    feedbackBuffer.setSize(2, samplesPerBlock);
-    feedbackBuffer.clear();
+    // Initialize tape delay
+    tapeDelay.prepare(sampleRate, samplesPerBlock);
 }
 
 void PalaceAudioProcessor::releaseResources() {
     for (auto& voice : voices) {
         voice.reset();
     }
+    tapeDelay.reset();
 }
 
 bool PalaceAudioProcessor::isBusesLayoutSupported(const BusesLayout& layouts) const {
@@ -140,23 +140,12 @@ void PalaceAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         }
     }
 
-    // Apply feedback (mix previous output back in)
-    feedbackGain = parameters.feedback->load() / 100.0f * 0.85f;  // Cap at 85% to prevent runaway
-    if (feedbackGain > 0.001f) {
-        const float* fbLeft = feedbackBuffer.getReadPointer(0);
-        const float* fbRight = feedbackBuffer.getReadPointer(1);
-
-        for (int i = 0; i < numSamples; ++i) {
-            leftChannel[i] += fbLeft[i] * feedbackGain;
-            rightChannel[i] += fbRight[i] * feedbackGain;
-        }
-    }
-
-    // Store current output for next feedback cycle
-    if (feedbackGain > 0.001f) {
-        feedbackBuffer.copyFrom(0, 0, buffer, 0, 0, numSamples);
-        feedbackBuffer.copyFrom(1, 0, buffer, 1, 0, numSamples);
-    }
+    // Apply tape delay
+    tapeDelay.setDelayTime(parameters.delayTime->load());
+    tapeDelay.setFeedback(parameters.feedback->load() / 100.0f * 0.85f);
+    tapeDelay.setFlutter(parameters.flutter->load() / 100.0f);
+    tapeDelay.setHiss(parameters.tapeHiss->load() / 100.0f);
+    tapeDelay.process(leftChannel, rightChannel, numSamples);
 
     // Apply spring reverb
     const float reverbMix = parameters.reverb->load() / 100.0f;
@@ -270,14 +259,26 @@ void PalaceAudioProcessor::updateVoiceParameters() {
     };
 
     GrainEngineParameters grainParams;
-    grainParams.position = juce::jlimit(0.0f, 1.0f, applyMod(ParamIDs::position, parameters.position->load(), 0.5f));
+    float rawPosition = juce::jlimit(0.0f, 1.0f, applyMod(ParamIDs::position, parameters.position->load(), 0.5f));
+    float cs = cropStart.load();
+    float ce = cropEnd.load();
+    grainParams.position = cs + rawPosition * (ce - cs);
     grainParams.grainSizeMs = juce::jlimit(10.0f, 2000.0f, applyMod(ParamIDs::grainSize, parameters.grainSize->load(), 500.0f));
+
+    // Clamp grain size so the grain window cannot extend past crop boundaries
+    if (sampleBuffer.isLoaded() && sampleBuffer.getNumSamples() > 0) {
+        double sampleDurationMs = (sampleBuffer.getNumSamples() / sampleBuffer.getSampleRate()) * 1000.0;
+        float cropWidthMs = static_cast<float>((ce - cs) * sampleDurationMs);
+        grainParams.grainSizeMs = std::min(grainParams.grainSizeMs, cropWidthMs);
+    }
     grainParams.density = juce::jlimit(1.0f, 200.0f, applyMod(ParamIDs::density, parameters.density->load(), 50.0f));
     grainParams.pitchSemitones = juce::jlimit(-48.0f, 48.0f, applyMod(ParamIDs::pitch, parameters.pitch->load(), 12.0f));
     grainParams.spray = juce::jlimit(0.0f, 1.0f, applyMod(ParamIDs::spray, parameters.spray->load() / 100.0f, 0.5f));
     grainParams.panSpread = juce::jlimit(0.0f, 1.0f, applyMod(ParamIDs::panSpread, parameters.panSpread->load() / 100.0f, 0.5f));
     grainParams.attackRatio = juce::jlimit(0.0f, 1.0f, applyMod(ParamIDs::grainAttack, parameters.grainAttack->load() / 100.0f, 0.25f));
     grainParams.releaseRatio = juce::jlimit(0.0f, 1.0f, applyMod(ParamIDs::grainRelease, parameters.grainRelease->load() / 100.0f, 0.25f));
+    grainParams.cropStart = cs;
+    grainParams.cropEnd = ce;
 
     const float attackMs = juce::jlimit(0.0f, 5000.0f, applyMod(ParamIDs::voiceAttack, parameters.voiceAttack->load(), 500.0f));
     const float decayMs = juce::jlimit(0.0f, 5000.0f, applyMod(ParamIDs::voiceDecay, parameters.voiceDecay->load(), 500.0f));
@@ -382,6 +383,13 @@ int PalaceAudioProcessor::getCCForParameter(const juce::String& paramId) const {
 
 void PalaceAudioProcessor::loadSample(const juce::File& file) {
     sampleBuffer.loadFromFile(file);
+    cropStart.store(0.0f);
+    cropEnd.store(1.0f);
+}
+
+void PalaceAudioProcessor::setCropRegion(float start, float end) {
+    cropStart.store(juce::jlimit(0.0f, 1.0f, start));
+    cropEnd.store(juce::jlimit(0.0f, 1.0f, end));
 }
 
 void PalaceAudioProcessor::setLfoModulation(const juce::String& paramId, bool enabled) {
@@ -409,6 +417,10 @@ void PalaceAudioProcessor::getStateInformation(juce::MemoryBlock& destData) {
 
     // Store sample path
     state.setProperty("samplePath", sampleBuffer.getFilePath(), nullptr);
+
+    // Store crop region
+    state.setProperty("cropStart", static_cast<double>(cropStart.load()), nullptr);
+    state.setProperty("cropEnd", static_cast<double>(cropEnd.load()), nullptr);
 
     // Store MIDI mappings
     juce::ValueTree midiMappingsTree("MidiMappings");
@@ -451,6 +463,10 @@ void PalaceAudioProcessor::setStateInformation(const void* data, int sizeInBytes
                 loadSample(sampleFile);
             }
         }
+
+        // Load crop region
+        cropStart.store(static_cast<float>(static_cast<double>(state.getProperty("cropStart", 0.0))));
+        cropEnd.store(static_cast<float>(static_cast<double>(state.getProperty("cropEnd", 1.0))));
 
         // Load MIDI mappings
         auto midiMappingsTree = state.getChildWithName("MidiMappings");

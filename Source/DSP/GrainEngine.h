@@ -16,6 +16,8 @@ struct GrainEngineParameters {
     float panSpread = 0.5f;      // Pan randomization (0-1)
     float attackRatio = 0.25f;   // Grain envelope attack (0-1)
     float releaseRatio = 0.25f;  // Grain envelope release (0-1)
+    float cropStart = 0.0f;     // Crop region start (0-1)
+    float cropEnd = 1.0f;       // Crop region end (0-1)
 };
 
 class GrainEngine {

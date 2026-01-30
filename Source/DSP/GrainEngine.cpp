@@ -84,17 +84,26 @@ void GrainEngine::triggerGrain(const SampleBuffer& source, float noteRatio) {
 
     GrainParameters grainParams;
 
-    // Calculate position with spray
+    // Calculate position with spray, clamped to crop region
     float positionNorm = params.position;
     if (params.spray > 0.0f) {
         const float sprayAmount = dist(rng) * params.spray;
-        positionNorm = std::clamp(positionNorm + sprayAmount, 0.0f, 1.0f);
+        positionNorm += sprayAmount;
     }
+    positionNorm = std::clamp(positionNorm, params.cropStart, params.cropEnd);
     grainParams.startPosition = static_cast<int>(positionNorm * (sourceSamples - 1));
 
     // Calculate grain size in samples
     grainParams.sizeInSamples = static_cast<int>(params.grainSizeMs * 0.001 * sampleRate);
     grainParams.sizeInSamples = std::max(grainParams.sizeInSamples, 64);  // Minimum size
+
+    // Clamp grain size so reading window stays within crop region
+    const int cropEndSample = static_cast<int>(params.cropEnd * (sourceSamples - 1));
+    const float pitchRatio = std::pow(2.0f, params.pitchSemitones / 12.0f) * noteRatio;
+    if (pitchRatio > 0.0f) {
+        const int maxReadSamples = static_cast<int>((cropEndSample - grainParams.startPosition) / pitchRatio);
+        grainParams.sizeInSamples = std::min(grainParams.sizeInSamples, std::max(maxReadSamples, 64));
+    }
 
     // Calculate pitch ratio from semitones + MIDI note
     const float semitonePitch = std::pow(2.0f, params.pitchSemitones / 12.0f);

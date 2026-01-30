@@ -11,11 +11,27 @@ WaveformDisplay::~WaveformDisplay() = default;
 
 void WaveformDisplay::setSampleBuffer(const SampleBuffer* buffer) {
     sampleBuffer = buffer;
-    // Reset zoom when loading new sample
+    // Reset zoom and crop when loading new sample
     zoomLevel = 1.0f;
     viewStart = 0.0f;
+    cropStart = 0.0f;
+    cropEnd = 1.0f;
+    currentDrag = DragTarget::None;
     invalidateWaveformCache();
     repaint();
+}
+
+void WaveformDisplay::resetCrop() {
+    cropStart = 0.0f;
+    cropEnd = 1.0f;
+    if (onCropChanged)
+        onCropChanged(cropStart, cropEnd);
+    repaint();
+}
+
+bool WaveformDisplay::isNearCropHandle(float screenX, float handleNormalized, float tolerance) const {
+    float handleScreen = normalizedToScreen(handleNormalized);
+    return std::abs(screenX - handleScreen) <= tolerance;
 }
 
 void WaveformDisplay::setPosition(float normalizedPosition) {
@@ -112,14 +128,57 @@ void WaveformDisplay::paint(juce::Graphics& g) {
                       static_cast<int>(waveformBounds.getY()));
     }
 
+    // Draw dimmed overlay outside crop region
+    if (cropStart > 0.0f || cropEnd < 1.0f) {
+        g.setColour(juce::Colours::black.withAlpha(0.5f));
+        if (cropStart > viewStart) {
+            float cropStartScreen = normalizedToScreen(cropStart);
+            g.fillRect(waveformBounds.getX(), waveformBounds.getY(),
+                       cropStartScreen - waveformBounds.getX(), waveformBounds.getHeight());
+        }
+        float viewEnd = viewStart + 1.0f / zoomLevel;
+        if (cropEnd < viewEnd) {
+            float cropEndScreen = normalizedToScreen(cropEnd);
+            g.fillRect(cropEndScreen, waveformBounds.getY(),
+                       waveformBounds.getRight() - cropEndScreen, waveformBounds.getHeight());
+        }
+    }
+
+    // Draw crop handles
+    {
+        const float handleWidth = 3.0f;
+        auto drawHandle = [&](float normalized, bool isActive) {
+            float viewEnd = viewStart + 1.0f / zoomLevel;
+            if (normalized < viewStart || normalized > viewEnd)
+                return;
+            float screenX = normalizedToScreen(normalized);
+            // Handle bar
+            g.setColour(isActive ? OccultLookAndFeel::amber : OccultLookAndFeel::textLight);
+            g.fillRect(screenX - handleWidth * 0.5f, waveformBounds.getY(),
+                       handleWidth, waveformBounds.getHeight());
+            // Grab tabs at top and bottom
+            float tabWidth = 8.0f;
+            float tabHeight = 12.0f;
+            g.fillRoundedRectangle(screenX - tabWidth * 0.5f, waveformBounds.getY(),
+                                   tabWidth, tabHeight, 2.0f);
+            g.fillRoundedRectangle(screenX - tabWidth * 0.5f, waveformBounds.getBottom() - tabHeight,
+                                   tabWidth, tabHeight, 2.0f);
+        };
+
+        bool startActive = (currentDrag == DragTarget::CropStart);
+        bool endActive = (currentDrag == DragTarget::CropEnd);
+        drawHandle(cropStart, startActive);
+        drawHandle(cropEnd, endActive);
+    }
+
     // Draw grain size region and position indicator
     float viewWidth = 1.0f / zoomLevel;
     float viewEnd = viewStart + viewWidth;
 
-    // Calculate grain region in normalized coordinates
+    // Calculate grain region in normalized coordinates, clamped to crop bounds
     float halfGrainSize = currentGrainSize * 0.5f;
-    float grainStart = currentPosition - halfGrainSize;
-    float grainEnd = currentPosition + halfGrainSize;
+    float grainStart = std::max(currentPosition - halfGrainSize, cropStart);
+    float grainEnd = std::min(currentPosition + halfGrainSize, cropEnd);
 
     // Check if grain region is at least partially visible
     if (grainEnd >= viewStart && grainStart <= viewEnd) {
@@ -226,13 +285,56 @@ void WaveformDisplay::mouseWheelMove(const juce::MouseEvent& event, const juce::
 }
 
 void WaveformDisplay::mouseDown(const juce::MouseEvent& event) {
-    if (sampleBuffer != nullptr && sampleBuffer->isLoaded()) {
-        lastDragX = static_cast<float>(event.x);
+    if (sampleBuffer == nullptr || !sampleBuffer->isLoaded())
+        return;
+
+    float mx = static_cast<float>(event.x);
+
+    // Check crop handles first (prioritize the closer one if overlapping)
+    bool nearStart = isNearCropHandle(mx, cropStart);
+    bool nearEnd = isNearCropHandle(mx, cropEnd);
+
+    if (nearStart && nearEnd) {
+        // Both close - pick whichever is closer
+        float distStart = std::abs(mx - normalizedToScreen(cropStart));
+        float distEnd = std::abs(mx - normalizedToScreen(cropEnd));
+        currentDrag = (distStart <= distEnd) ? DragTarget::CropStart : DragTarget::CropEnd;
+    } else if (nearStart) {
+        currentDrag = DragTarget::CropStart;
+    } else if (nearEnd) {
+        currentDrag = DragTarget::CropEnd;
+    } else {
+        currentDrag = DragTarget::None;
+        lastDragX = mx;
     }
 }
 
 void WaveformDisplay::mouseDrag(const juce::MouseEvent& event) {
-    if (sampleBuffer == nullptr || !sampleBuffer->isLoaded() || zoomLevel <= 1.0f)
+    if (sampleBuffer == nullptr || !sampleBuffer->isLoaded())
+        return;
+
+    const float minCropGap = 0.01f;
+
+    if (currentDrag == DragTarget::CropStart) {
+        float normalized = screenToNormalized(static_cast<float>(event.x));
+        cropStart = juce::jlimit(0.0f, cropEnd - minCropGap, normalized);
+        if (onCropChanged)
+            onCropChanged(cropStart, cropEnd);
+        repaint();
+        return;
+    }
+
+    if (currentDrag == DragTarget::CropEnd) {
+        float normalized = screenToNormalized(static_cast<float>(event.x));
+        cropEnd = juce::jlimit(cropStart + minCropGap, 1.0f, normalized);
+        if (onCropChanged)
+            onCropChanged(cropStart, cropEnd);
+        repaint();
+        return;
+    }
+
+    // Panning (only when zoomed in)
+    if (zoomLevel <= 1.0f)
         return;
 
     const auto bounds = getLocalBounds().toFloat().reduced(8.0f);
@@ -245,6 +347,24 @@ void WaveformDisplay::mouseDrag(const juce::MouseEvent& event) {
 
     waveformNeedsUpdate = true;
     repaint();
+}
+
+void WaveformDisplay::mouseUp(const juce::MouseEvent&) {
+    currentDrag = DragTarget::None;
+}
+
+void WaveformDisplay::mouseMove(const juce::MouseEvent& event) {
+    if (sampleBuffer == nullptr || !sampleBuffer->isLoaded()) {
+        setMouseCursor(juce::MouseCursor::NormalCursor);
+        return;
+    }
+
+    float mx = static_cast<float>(event.x);
+    if (isNearCropHandle(mx, cropStart) || isNearCropHandle(mx, cropEnd)) {
+        setMouseCursor(juce::MouseCursor::LeftRightResizeCursor);
+    } else {
+        setMouseCursor(juce::MouseCursor::NormalCursor);
+    }
 }
 
 void WaveformDisplay::mouseDoubleClick(const juce::MouseEvent&) {

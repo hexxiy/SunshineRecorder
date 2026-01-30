@@ -5,6 +5,7 @@
 #include "DSP/SampleBuffer.h"
 #include "DSP/Voice.h"
 #include "DSP/LFO.h"
+#include "DSP/TapeDelay.h"
 #include "Parameters/Parameters.h"
 #include <array>
 #include <map>
@@ -81,6 +82,11 @@ public:
     juce::String getParameterForCC(int ccNumber) const;
     int getCCForParameter(const juce::String& paramId) const;
 
+    // Crop region
+    void setCropRegion(float start, float end);
+    float getCropStart() const { return cropStart.load(); }
+    float getCropEnd() const { return cropEnd.load(); }
+
     // MIDI learn
     void setMidiLearnParameter(const juce::String& paramId) { midiLearnParamId = paramId; }
     void clearMidiLearnParameter() { midiLearnParamId.clear(); }
@@ -116,9 +122,8 @@ private:
     juce::Reverb reverb;
     juce::Reverb::Parameters reverbParams;
 
-    // Feedback buffer
-    juce::AudioBuffer<float> feedbackBuffer;
-    float feedbackGain = 0.0f;
+    // Tape delay
+    TapeDelay tapeDelay;
 
     // LFO
     LFO lfo;
@@ -135,6 +140,10 @@ private:
     juce::String midiLearnParamId;  // Parameter waiting for CC assignment
     std::atomic<int> lastReceivedCC{-1};
     juce::CriticalSection midiMappingLock;
+
+    // Crop region
+    std::atomic<float> cropStart{0.0f};
+    std::atomic<float> cropEnd{1.0f};
 
     // MIDI debug
     std::atomic<int> midiMessageCount{0};

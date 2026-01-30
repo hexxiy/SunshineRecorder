@@ -78,6 +78,11 @@ private:
     void createModButton(const juce::String& paramId);
     void updateModButtonStates();
 
+    // Tape Delay
+    OccultKnob delayTimeKnob{"DELAY"};
+    OccultKnob flutterKnob{"FLUTTER"};
+    OccultKnob hissKnob{"HISS"};
+
     // Effects
     OccultKnob reverbKnob{"REVERB"};
     OccultKnob feedbackKnob{"FEEDBACK"};

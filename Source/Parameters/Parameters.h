@@ -26,6 +26,11 @@ namespace ParamIDs {
     inline constexpr const char* lfoWaveform = "lfoWaveform";
     inline constexpr const char* lfoAmount = "lfoAmount";
 
+    // Tape Delay
+    inline constexpr const char* delayTime = "delayTime";
+    inline constexpr const char* flutter   = "flutter";
+    inline constexpr const char* tapeHiss  = "tapeHiss";
+
     // Effects
     inline constexpr const char* reverb = "reverb";
     inline constexpr const char* feedback = "feedback";
@@ -61,6 +66,11 @@ public:
     std::atomic<float>* lfoRate = nullptr;
     std::atomic<float>* lfoWaveform = nullptr;
     std::atomic<float>* lfoAmount = nullptr;
+
+    // Tape Delay
+    std::atomic<float>* delayTime = nullptr;
+    std::atomic<float>* flutter   = nullptr;
+    std::atomic<float>* tapeHiss  = nullptr;
 
     // Effects
     std::atomic<float>* reverb = nullptr;
