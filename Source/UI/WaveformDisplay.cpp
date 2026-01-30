@@ -1,5 +1,6 @@
 #include "WaveformDisplay.h"
 #include "OccultLookAndFeel.h"
+#include <vector>
 
 namespace palace {
 
@@ -13,12 +14,30 @@ void WaveformDisplay::setSampleBuffer(const SampleBuffer* buffer) {
     // Reset zoom when loading new sample
     zoomLevel = 1.0f;
     viewStart = 0.0f;
-    generateWaveformPath();
+    invalidateWaveformCache();
     repaint();
 }
 
 void WaveformDisplay::setPosition(float normalizedPosition) {
+    if (std::abs(currentPosition - normalizedPosition) < 0.0001f)
+        return;
+
     currentPosition = normalizedPosition;
+
+    // When zoomed in, center the view on the current position
+    if (zoomLevel > 1.0f) {
+        float viewWidth = 1.0f / zoomLevel;
+        float newViewStart = currentPosition - viewWidth * 0.5f;
+
+        // Clamp view start to valid range
+        newViewStart = juce::jlimit(0.0f, 1.0f - viewWidth, newViewStart);
+
+        if (std::abs(newViewStart - viewStart) > 0.001f) {
+            viewStart = newViewStart;
+            waveformNeedsUpdate = true;
+        }
+    }
+
     repaint();
 }
 
@@ -79,18 +98,19 @@ void WaveformDisplay::paint(juce::Graphics& g) {
         return;
     }
 
+    // Regenerate waveform if needed
+    if (waveformNeedsUpdate)
+        generateWaveformPath();
+
     // Draw waveform
     const float waveformPadding = 8.0f;
     const auto waveformBounds = bounds.reduced(waveformPadding);
 
-    // Draw waveform shadow
-    g.setColour(juce::Colours::black.withAlpha(0.3f));
-    g.strokePath(waveformPath, juce::PathStrokeType(2.0f),
-                 juce::AffineTransform::translation(1.0f, 1.0f));
-
-    // Draw main waveform
-    g.setColour(OccultLookAndFeel::textLight.withAlpha(0.7f));
-    g.strokePath(waveformPath, juce::PathStrokeType(1.0f));
+    // Use cached image if available and valid
+    if (cachedWaveform.isValid()) {
+        g.drawImageAt(cachedWaveform, static_cast<int>(waveformBounds.getX()),
+                      static_cast<int>(waveformBounds.getY()));
+    }
 
     // Draw grain size region and position indicator
     float viewWidth = 1.0f / zoomLevel;
@@ -158,7 +178,10 @@ void WaveformDisplay::paint(juce::Graphics& g) {
 }
 
 void WaveformDisplay::resized() {
-    generateWaveformPath();
+    // Only invalidate if we have valid bounds and size changed
+    if (getWidth() > 0 && getHeight() > 0) {
+        invalidateWaveformCache();
+    }
 }
 
 float WaveformDisplay::screenToNormalized(float screenX) const {
@@ -197,7 +220,7 @@ void WaveformDisplay::mouseWheelMove(const juce::MouseEvent& event, const juce::
         viewStart = juce::jlimit(0.0f, 1.0f - viewWidth, viewStart);
 
         zoomLevel = newZoom;
-        generateWaveformPath();
+        waveformNeedsUpdate = true;
         repaint();
     }
 }
@@ -220,33 +243,81 @@ void WaveformDisplay::mouseDrag(const juce::MouseEvent& event) {
     viewStart = juce::jlimit(0.0f, 1.0f - viewWidth, viewStart + deltaNormalized);
     lastDragX = static_cast<float>(event.x);
 
-    generateWaveformPath();
+    waveformNeedsUpdate = true;
     repaint();
 }
 
 void WaveformDisplay::mouseDoubleClick(const juce::MouseEvent&) {
-    // Reset zoom on double-click
+    resetZoom();
+}
+
+void WaveformDisplay::zoomIn() {
+    if (sampleBuffer == nullptr || !sampleBuffer->isLoaded())
+        return;
+
+    float newZoom = juce::jlimit(1.0f, 50.0f, zoomLevel * 1.5f);
+
+    if (newZoom != zoomLevel) {
+        // Keep view centered on current position
+        float viewWidth = 1.0f / newZoom;
+        viewStart = currentPosition - viewWidth * 0.5f;
+        viewStart = juce::jlimit(0.0f, 1.0f - viewWidth, viewStart);
+
+        zoomLevel = newZoom;
+        waveformNeedsUpdate = true;
+        repaint();
+    }
+}
+
+void WaveformDisplay::zoomOut() {
+    if (sampleBuffer == nullptr || !sampleBuffer->isLoaded())
+        return;
+
+    float newZoom = juce::jlimit(1.0f, 50.0f, zoomLevel / 1.5f);
+
+    if (newZoom != zoomLevel) {
+        float viewWidth = 1.0f / newZoom;
+        viewStart = currentPosition - viewWidth * 0.5f;
+        viewStart = juce::jlimit(0.0f, 1.0f - viewWidth, viewStart);
+
+        zoomLevel = newZoom;
+        waveformNeedsUpdate = true;
+        repaint();
+    }
+}
+
+void WaveformDisplay::resetZoom() {
     zoomLevel = 1.0f;
     viewStart = 0.0f;
-    generateWaveformPath();
+    invalidateWaveformCache();
     repaint();
 }
 
 void WaveformDisplay::generateWaveformPath() {
-    waveformPath.clear();
-
-    if (sampleBuffer == nullptr || !sampleBuffer->isLoaded())
+    if (sampleBuffer == nullptr || !sampleBuffer->isLoaded()) {
+        waveformNeedsUpdate = false;
         return;
+    }
 
     const auto bounds = getLocalBounds().toFloat().reduced(8.0f);
-    const int totalSamples = sampleBuffer->getNumSamples();
     const int width = static_cast<int>(bounds.getWidth());
+    const int height = static_cast<int>(bounds.getHeight());
 
-    if (width <= 0 || totalSamples <= 0)
+    // Check if we actually need to regenerate
+    if (!waveformNeedsUpdate &&
+        lastViewStart == viewStart &&
+        lastZoomLevel == zoomLevel &&
+        lastWidth == width &&
+        lastHeight == height &&
+        cachedWaveform.isValid()) {
         return;
+    }
 
-    const float centerY = bounds.getCentreY();
-    const float amplitude = bounds.getHeight() * 0.45f;
+    const int totalSamples = sampleBuffer->getNumSamples();
+    if (width <= 0 || height <= 0 || totalSamples <= 0) {
+        waveformNeedsUpdate = false;
+        return;
+    }
 
     // Calculate visible sample range based on zoom/pan
     float viewWidth = 1.0f / zoomLevel;
@@ -255,57 +326,102 @@ void WaveformDisplay::generateWaveformPath() {
     endSampleIdx = std::min(endSampleIdx, totalSamples);
 
     int visibleSamples = endSampleIdx - startSampleIdx;
-    if (visibleSamples <= 0)
+    if (visibleSamples <= 0) {
+        waveformNeedsUpdate = false;
         return;
+    }
+
+    // Create or resize cached image
+    if (!cachedWaveform.isValid() ||
+        cachedWaveform.getWidth() != width ||
+        cachedWaveform.getHeight() != height) {
+        cachedWaveform = juce::Image(juce::Image::ARGB, width, height, true);
+    }
+
+    // Clear the image
+    cachedWaveform.clear(cachedWaveform.getBounds());
 
     // Calculate samples per pixel for visible region
     const double samplesPerPixel = static_cast<double>(visibleSamples) / width;
-
     const auto& buffer = sampleBuffer->getBuffer();
     const int numChannels = buffer.getNumChannels();
+    const float centerY = height * 0.5f;
+    const float amplitude = height * 0.45f;
 
-    waveformPath.startNewSubPath(bounds.getX(), centerY);
+    // Build optimized path with single pass
+    waveformPath.clear();
+    waveformPath.preallocateSpace(width * 3);
 
+    std::vector<float> topPoints(width);
+    std::vector<float> bottomPoints(width);
+
+    // Single pass to calculate both top and bottom
     for (int x = 0; x < width; ++x) {
         const int localStart = static_cast<int>(x * samplesPerPixel);
         const int localEnd = static_cast<int>((x + 1) * samplesPerPixel);
 
         float maxVal = 0.0f;
 
-        for (int s = localStart; s < localEnd; ++s) {
-            int sampleIdx = startSampleIdx + s;
-            if (sampleIdx >= 0 && sampleIdx < totalSamples) {
-                for (int ch = 0; ch < numChannels; ++ch) {
-                    maxVal = std::max(maxVal, std::abs(buffer.getSample(ch, sampleIdx)));
+        // Unroll channel loop for better performance when we have 1 or 2 channels
+        if (numChannels == 1) {
+            for (int s = localStart; s < localEnd; ++s) {
+                int sampleIdx = startSampleIdx + s;
+                if (sampleIdx >= 0 && sampleIdx < totalSamples) {
+                    maxVal = std::max(maxVal, std::abs(buffer.getSample(0, sampleIdx)));
+                }
+            }
+        } else {
+            for (int s = localStart; s < localEnd; ++s) {
+                int sampleIdx = startSampleIdx + s;
+                if (sampleIdx >= 0 && sampleIdx < totalSamples) {
+                    for (int ch = 0; ch < numChannels; ++ch) {
+                        maxVal = std::max(maxVal, std::abs(buffer.getSample(ch, sampleIdx)));
+                    }
                 }
             }
         }
 
-        const float yTop = centerY - maxVal * amplitude;
-        waveformPath.lineTo(bounds.getX() + x, yTop);
+        topPoints[x] = centerY - maxVal * amplitude;
+        bottomPoints[x] = centerY + maxVal * amplitude;
     }
 
-    // Draw back to create filled waveform
+    // Build path from pre-calculated points
+    waveformPath.startNewSubPath(0.0f, topPoints[0]);
+    for (int x = 1; x < width; ++x) {
+        waveformPath.lineTo(static_cast<float>(x), topPoints[x]);
+    }
     for (int x = width - 1; x >= 0; --x) {
-        const int localStart = static_cast<int>(x * samplesPerPixel);
-        const int localEnd = static_cast<int>((x + 1) * samplesPerPixel);
-
-        float maxVal = 0.0f;
-
-        for (int s = localStart; s < localEnd; ++s) {
-            int sampleIdx = startSampleIdx + s;
-            if (sampleIdx >= 0 && sampleIdx < totalSamples) {
-                for (int ch = 0; ch < numChannels; ++ch) {
-                    maxVal = std::max(maxVal, std::abs(buffer.getSample(ch, sampleIdx)));
-                }
-            }
-        }
-
-        const float yBottom = centerY + maxVal * amplitude;
-        waveformPath.lineTo(bounds.getX() + x, yBottom);
+        waveformPath.lineTo(static_cast<float>(x), bottomPoints[x]);
     }
-
     waveformPath.closeSubPath();
+
+    // Render to cached image
+    juce::Graphics g(cachedWaveform);
+
+    // Draw waveform shadow
+    g.setColour(juce::Colours::black.withAlpha(0.3f));
+    g.strokePath(waveformPath, juce::PathStrokeType(2.0f),
+                 juce::AffineTransform::translation(1.0f, 1.0f));
+
+    // Draw main waveform
+    g.setColour(OccultLookAndFeel::textLight.withAlpha(0.7f));
+    g.strokePath(waveformPath, juce::PathStrokeType(1.0f));
+
+    // Update cache state
+    lastViewStart = viewStart;
+    lastZoomLevel = zoomLevel;
+    lastWidth = width;
+    lastHeight = height;
+    waveformNeedsUpdate = false;
+}
+
+void WaveformDisplay::invalidateWaveformCache() {
+    waveformNeedsUpdate = true;
+    cachedWaveform = juce::Image();
+    lastViewStart = -1.0f;
+    lastZoomLevel = -1.0f;
+    lastWidth = -1;
+    lastHeight = -1;
 }
 
 bool WaveformDisplay::isInterestedInFileDrag(const juce::StringArray& files) {

@@ -21,6 +21,15 @@ namespace ParamIDs {
     inline constexpr const char* voiceSustain = "voiceSustain";
     inline constexpr const char* voiceRelease = "voiceRelease";
 
+    // LFO
+    inline constexpr const char* lfoRate = "lfoRate";
+    inline constexpr const char* lfoWaveform = "lfoWaveform";
+    inline constexpr const char* lfoAmount = "lfoAmount";
+
+    // Effects
+    inline constexpr const char* reverb = "reverb";
+    inline constexpr const char* feedback = "feedback";
+
     // Output
     inline constexpr const char* mix    = "mix";
     inline constexpr const char* output = "output";
@@ -47,6 +56,15 @@ public:
     std::atomic<float>* voiceDecay   = nullptr;
     std::atomic<float>* voiceSustain = nullptr;
     std::atomic<float>* voiceRelease = nullptr;
+
+    // LFO
+    std::atomic<float>* lfoRate = nullptr;
+    std::atomic<float>* lfoWaveform = nullptr;
+    std::atomic<float>* lfoAmount = nullptr;
+
+    // Effects
+    std::atomic<float>* reverb = nullptr;
+    std::atomic<float>* feedback = nullptr;
 
     // Output
     std::atomic<float>* mix    = nullptr;

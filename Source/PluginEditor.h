@@ -6,6 +6,7 @@
 #include "UI/OccultKnob.h"
 #include "UI/WaveformDisplay.h"
 #include "UI/GrainVisualizer.h"
+#include "UI/LFOVisualizer.h"
 #include <set>
 
 namespace palace {
@@ -45,6 +46,10 @@ private:
     // Load button
     juce::TextButton loadButton{"LOAD"};
 
+    // Zoom buttons
+    juce::TextButton zoomInButton{"+"};
+    juce::TextButton zoomOutButton{"-"};
+
     // Grain controls
     OccultKnob positionKnob{"POSITION"};
     OccultKnob grainSizeKnob{"SIZE"};
@@ -61,6 +66,22 @@ private:
     OccultKnob voiceSustainKnob{"SUSTAIN"};
     OccultKnob voiceReleaseKnob{"RELEASE"};
 
+    // LFO
+    LFOVisualizer lfoVisualizer;
+    OccultKnob lfoRateKnob{"RATE"};
+    OccultKnob lfoAmountKnob{"AMOUNT"};
+    juce::ComboBox lfoWaveformBox;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> lfoWaveformAttachment;
+
+    // Modulation buttons (one per modulatable parameter)
+    std::map<juce::String, std::unique_ptr<juce::TextButton>> modButtons;
+    void createModButton(const juce::String& paramId);
+    void updateModButtonStates();
+
+    // Effects
+    OccultKnob reverbKnob{"REVERB"};
+    OccultKnob feedbackKnob{"FEEDBACK"};
+
     // Output
     OccultKnob mixKnob{"MIX"};
     OccultKnob outputKnob{"OUTPUT"};
@@ -71,7 +92,29 @@ private:
     juce::Label octaveLabel;
     juce::TextButton octaveDownButton{"-"};
     juce::TextButton octaveUpButton{"+"};
-    bool keyboardActive = false;  // Caps lock state
+    bool keyboardActive = false;  // Keyboard input enabled
+
+    // MIDI learn mode
+    bool midiLearnMode = false;
+    bool midiAutoSave = true;
+    juce::String selectedParamForLearn;
+    int lastDisplayedCC = -1;
+    int lastMessageCount = 0;
+    juce::String lastMappingMessage;
+    int mappingMessageTimeout = 0;
+    void showMidiDeviceMenu();
+    void selectParameterForLearn(const juce::String& paramId);
+    juce::String getParamIdForKnob(OccultKnob* knob);
+    void drawMidiStatus(juce::Graphics& g, juce::Rectangle<int> bounds);
+    void drawMidiDebug(juce::Graphics& g, juce::Rectangle<int> bounds);
+
+    // MIDI mapping file operations
+    void saveMidiMappings();
+    void loadMidiMappings();
+    void saveMidiMappingsToFile(const juce::File& file);
+    void loadMidiMappingsFromFile(const juce::File& file);
+    juce::File getDefaultMidiMappingsFile();
+    void loadAutoSaveSettings();
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(PalaceAudioProcessorEditor)
 };

@@ -15,6 +15,11 @@ public:
     void setPosition(float normalizedPosition);  // 0-1
     void setGrainSize(float normalizedSize);     // 0-1 relative to sample length
 
+    // Zoom controls
+    void zoomIn();
+    void zoomOut();
+    void resetZoom();
+
     void paint(juce::Graphics& g) override;
     void resized() override;
 
@@ -35,19 +40,28 @@ public:
 
 private:
     void generateWaveformPath();
+    void invalidateWaveformCache();
     float screenToNormalized(float screenX) const;
     float normalizedToScreen(float normalized) const;
 
     const SampleBuffer* sampleBuffer = nullptr;
     juce::Path waveformPath;
+    juce::Image cachedWaveform;
     float currentPosition = 0.0f;
     float currentGrainSize = 0.05f;  // Normalized grain size (0-1)
     bool isDraggingFile = false;
+    bool waveformNeedsUpdate = true;
 
     // Zoom and pan state
     float zoomLevel = 1.0f;      // 1.0 = full view, higher = zoomed in
     float viewStart = 0.0f;      // Start of visible region (0-1)
     float lastDragX = 0.0f;      // For panning
+
+    // Cache state to avoid unnecessary regeneration
+    float lastViewStart = -1.0f;
+    float lastZoomLevel = -1.0f;
+    int lastWidth = -1;
+    int lastHeight = -1;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(WaveformDisplay)
 };

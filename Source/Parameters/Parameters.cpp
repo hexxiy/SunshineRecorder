@@ -117,6 +117,50 @@ juce::AudioProcessorValueTreeState::ParameterLayout Parameters::createParameterL
         juce::AudioParameterFloatAttributes().withLabel("ms")
     ));
 
+    // LFO Rate (0.01-20 Hz)
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{ParamIDs::lfoRate, 1},
+        "LFO Rate",
+        juce::NormalisableRange<float>(0.01f, 20.0f, 0.01f, 0.4f),
+        1.0f,
+        juce::AudioParameterFloatAttributes().withLabel("Hz")
+    ));
+
+    // LFO Waveform (0=sine, 1=triangle, 2=square, 3=noise, 4=stepped noise)
+    params.push_back(std::make_unique<juce::AudioParameterChoice>(
+        juce::ParameterID{ParamIDs::lfoWaveform, 1},
+        "LFO Waveform",
+        juce::StringArray{"Sine", "Triangle", "Square", "Noise", "S&H"},
+        0
+    ));
+
+    // LFO Amount (0-100%)
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{ParamIDs::lfoAmount, 1},
+        "LFO Amount",
+        juce::NormalisableRange<float>(0.0f, 100.0f, 0.1f),
+        50.0f,
+        juce::AudioParameterFloatAttributes().withLabel("%")
+    ));
+
+    // Reverb (0-100%)
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{ParamIDs::reverb, 1},
+        "Reverb",
+        juce::NormalisableRange<float>(0.0f, 100.0f, 0.1f),
+        20.0f,
+        juce::AudioParameterFloatAttributes().withLabel("%")
+    ));
+
+    // Feedback (0-100%)
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{ParamIDs::feedback, 1},
+        "Feedback",
+        juce::NormalisableRange<float>(0.0f, 100.0f, 0.1f),
+        0.0f,
+        juce::AudioParameterFloatAttributes().withLabel("%")
+    ));
+
     // Mix (0-100%)
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID{ParamIDs::mix, 1},
@@ -152,6 +196,13 @@ void Parameters::attachParameters(juce::AudioProcessorValueTreeState& apvts) {
     voiceDecay   = apvts.getRawParameterValue(ParamIDs::voiceDecay);
     voiceSustain = apvts.getRawParameterValue(ParamIDs::voiceSustain);
     voiceRelease = apvts.getRawParameterValue(ParamIDs::voiceRelease);
+
+    lfoRate = apvts.getRawParameterValue(ParamIDs::lfoRate);
+    lfoWaveform = apvts.getRawParameterValue(ParamIDs::lfoWaveform);
+    lfoAmount = apvts.getRawParameterValue(ParamIDs::lfoAmount);
+
+    reverb = apvts.getRawParameterValue(ParamIDs::reverb);
+    feedback = apvts.getRawParameterValue(ParamIDs::feedback);
 
     mix    = apvts.getRawParameterValue(ParamIDs::mix);
     output = apvts.getRawParameterValue(ParamIDs::output);
