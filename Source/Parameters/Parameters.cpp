@@ -18,11 +18,11 @@ juce::AudioProcessorValueTreeState::ParameterLayout Parameters::createParameterL
         juce::AudioParameterFloatAttributes().withLabel("%")
     ));
 
-    // Grain Size (10-2000ms)
+    // Grain Size (10-8000ms)
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID{ParamIDs::grainSize, 1},
         "Grain Size",
-        juce::NormalisableRange<float>(10.0f, 2000.0f, 1.0f, 0.4f),
+        juce::NormalisableRange<float>(10.0f, 8000.0f, 1.0f, 0.4f),
         100.0f,
         juce::AudioParameterFloatAttributes().withLabel("ms")
     ));
@@ -188,6 +188,24 @@ juce::AudioProcessorValueTreeState::ParameterLayout Parameters::createParameterL
         juce::AudioParameterFloatAttributes().withLabel("%")
     ));
 
+    // Damage (0-100%)
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{ParamIDs::damage, 1},
+        "Damage",
+        juce::NormalisableRange<float>(0.0f, 100.0f, 0.1f),
+        0.0f,
+        juce::AudioParameterFloatAttributes().withLabel("%")
+    ));
+
+    // Life (25-1000000 hits, logarithmic)
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{ParamIDs::life, 1},
+        "Life",
+        juce::NormalisableRange<float>(25.0f, 1000000.0f, 1.0f, 0.3f),
+        1000.0f,
+        juce::AudioParameterFloatAttributes().withLabel("hits")
+    ));
+
     // Mix (0-100%)
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID{ParamIDs::mix, 1},
@@ -202,6 +220,15 @@ juce::AudioProcessorValueTreeState::ParameterLayout Parameters::createParameterL
         juce::ParameterID{ParamIDs::output, 1},
         "Output",
         juce::NormalisableRange<float>(-60.0f, 6.0f, 0.1f, 2.0f),
+        0.0f,
+        juce::AudioParameterFloatAttributes().withLabel("dB")
+    ));
+
+    // Sample Gain (-24 to +24 dB)
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{ParamIDs::sampleGain, 1},
+        "Sample Gain",
+        juce::NormalisableRange<float>(-24.0f, 24.0f, 0.1f, 1.0f),
         0.0f,
         juce::AudioParameterFloatAttributes().withLabel("dB")
     ));
@@ -232,11 +259,16 @@ void Parameters::attachParameters(juce::AudioProcessorValueTreeState& apvts) {
     flutter   = apvts.getRawParameterValue(ParamIDs::flutter);
     tapeHiss  = apvts.getRawParameterValue(ParamIDs::tapeHiss);
 
+    damage = apvts.getRawParameterValue(ParamIDs::damage);
+    life   = apvts.getRawParameterValue(ParamIDs::life);
+
     reverb = apvts.getRawParameterValue(ParamIDs::reverb);
     feedback = apvts.getRawParameterValue(ParamIDs::feedback);
 
     mix    = apvts.getRawParameterValue(ParamIDs::mix);
     output = apvts.getRawParameterValue(ParamIDs::output);
+
+    sampleGain = apvts.getRawParameterValue(ParamIDs::sampleGain);
 }
 
 } // namespace palace

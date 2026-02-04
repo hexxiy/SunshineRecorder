@@ -1,5 +1,7 @@
 #include "Grain.h"
 #include "SampleBuffer.h"
+#include "TapeDamageProcessor.h"
+#include "TapeDisintegrationEngine.h"
 
 namespace palace {
 
@@ -23,6 +25,10 @@ bool Grain::process(const SampleBuffer& source, float* leftOutput, float* rightO
     const float leftGain = std::cos(panAngle);
     const float rightGain = std::sin(panAngle);
 
+    // Track playback region for damage accumulation
+    double minPos = currentPosition + params.startPosition;
+    double maxPos = minPos;
+
     for (int i = 0; i < numSamples && active; ++i) {
         // Check if grain has finished
         if (samplesProcessed >= params.sizeInSamples) {
@@ -33,8 +39,34 @@ bool Grain::process(const SampleBuffer& source, float* leftOutput, float* rightO
         // Calculate source position
         const double sourcePos = params.startPosition + currentPosition;
 
+        // Track region bounds
+        minPos = std::min(minPos, sourcePos);
+        maxPos = std::max(maxPos, sourcePos);
+
         // Get interpolated sample from source
         float sample = interpolateSample(source, sourcePos);
+
+        // Apply sample gain (convert dB to linear)
+        if (params.sampleGainDb != 0.0f) {
+            float gainLinear = std::pow(10.0f, params.sampleGainDb / 20.0f);
+            sample *= gainLinear;
+        }
+
+        // Apply tape damage if enabled
+        if (damageProcessor && disintegrationEngine && disintegrationAmount > 0.001f) {
+            int sampleIndex = static_cast<int>(sourcePos);
+
+            // Decrement life on each sample read
+            disintegrationEngine->decrementLife(sampleIndex);
+
+            // Query damage and apply effect
+            float damage = disintegrationEngine->getDamageAtPosition(sampleIndex);
+            if (damage > 0.001f) {
+                // Scale damage by the disintegration amount parameter
+                float scaledDamage = damage * (disintegrationAmount / 100.0f);
+                sample = damageProcessor->processSample(sample, scaledDamage);
+            }
+        }
 
         // Apply envelope
         sample *= getEnvelopeValue();
@@ -49,6 +81,12 @@ bool Grain::process(const SampleBuffer& source, float* leftOutput, float* rightO
         // Advance position based on pitch ratio
         currentPosition += params.pitchRatio;
         samplesProcessed++;
+    }
+
+    // Store playback region for damage accumulation
+    if (active || samplesProcessed >= params.sizeInSamples) {
+        lastPlaybackStart = static_cast<int>(minPos);
+        lastPlaybackEnd = static_cast<int>(maxPos);
     }
 
     return active;
@@ -92,6 +130,11 @@ float Grain::interpolateSample(const SampleBuffer& source, double position) cons
         const float right = source.getSampleInterpolated(1, position);
         return (left + right) * 0.5f;
     }
+}
+
+void Grain::setDamageProcessors(TapeDamageProcessor* dp, TapeDisintegrationEngine* de) {
+    damageProcessor = dp;
+    disintegrationEngine = de;
 }
 
 } // namespace palace

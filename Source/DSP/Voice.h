@@ -5,6 +5,8 @@
 
 namespace palace {
 
+class TapeDisintegrationEngine;
+
 class Voice {
 public:
     Voice();
@@ -26,6 +28,10 @@ public:
     void setGrainParameters(const GrainEngineParameters& params);
     void setADSR(float attackMs, float decayMs, float sustain, float releaseMs);
 
+    // Tape disintegration support
+    void setDisintegrationEngine(TapeDisintegrationEngine* de);
+    void setDisintegrationAmount(float amount);
+
     // State queries
     bool isActive() const { return active; }
     bool isReleasing() const { return releasing; }
@@ -34,6 +40,16 @@ public:
     // For voice stealing - lower age = more recently triggered
     int getAge() const { return age; }
     void incrementAge() { age++; }
+
+    // Get playback regions from grain engine (for damage tracking)
+    std::vector<GrainEngine::PlaybackRegion> getActivePlaybackRegions() const {
+        return grainEngine.getActivePlaybackRegions();
+    }
+
+    // Get active grain info for visualization
+    std::vector<GrainEngine::GrainInfo> getActiveGrainInfo() const {
+        return grainEngine.getActiveGrainInfo();
+    }
 
 private:
     void updateEnvelope(int numSamples);
@@ -62,6 +78,10 @@ private:
     // Pitch ratio for MIDI note (relative to middle C = 60)
     float noteRatio = 1.0f;
     static constexpr int BASE_NOTE = 60;  // Middle C
+
+    // Pre-allocated temporary buffers (avoid allocation in audio thread)
+    std::vector<float> tempBufferLeft;
+    std::vector<float> tempBufferRight;
 };
 
 } // namespace palace

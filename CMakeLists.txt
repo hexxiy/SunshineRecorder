@@ -2,6 +2,10 @@ cmake_minimum_required(VERSION 3.22)
 
 project(SunshineRecorder VERSION 1.0.0)
 
+# Generate build timestamp
+string(TIMESTAMP BUILD_TIMESTAMP "%Y-%m-%d %H:%M:%S" UTC)
+set(PROJECT_VERSION_WITH_BUILD "${PROJECT_VERSION} (${BUILD_TIMESTAMP})")
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -36,6 +40,8 @@ target_sources(SunshineRecorder
         Source/DSP/GrainEngine.cpp
         Source/DSP/SampleBuffer.cpp
         Source/DSP/TapeDelay.cpp
+        Source/DSP/TapeDisintegrationEngine.cpp
+        Source/DSP/TapeDamageProcessor.cpp
         Source/DSP/Voice.cpp
         Source/Parameters/Parameters.cpp
         Source/UI/OccultKnob.cpp
@@ -49,6 +55,9 @@ target_compile_definitions(SunshineRecorder
         JUCE_WEB_BROWSER=0
         JUCE_USE_CURL=0
         JUCE_VST3_CAN_REPLACE_VST2=0
+    PRIVATE
+        PROJECT_VERSION="${PROJECT_VERSION}"
+        BUILD_TIMESTAMP="${BUILD_TIMESTAMP}"
 )
 
 target_link_libraries(SunshineRecorder

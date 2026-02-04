@@ -107,6 +107,19 @@ public:
         heldValue = dist(rng);
     }
 
+    // Advance phase by multiple samples without computing output
+    void advancePhase(int samples) {
+        if (samples <= 0)
+            return;
+
+        phase += (frequency / sampleRate) * samples;
+        while (phase >= 1.0)
+            phase -= 1.0;
+
+        // Update lastPhase for sample & hold detection
+        lastPhase = phase;
+    }
+
     float getPhase() const {
         return static_cast<float>(phase);
     }

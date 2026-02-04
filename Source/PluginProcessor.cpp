@@ -29,7 +29,7 @@ bool PalaceAudioProcessor::isMidiEffect() const {
 }
 
 double PalaceAudioProcessor::getTailLengthSeconds() const {
-    return 10.0;  // Maximum release time
+    return TAIL_LENGTH_SECONDS;
 }
 
 int PalaceAudioProcessor::getNumPrograms() {
@@ -73,6 +73,16 @@ void PalaceAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
 
     // Initialize tape delay
     tapeDelay.prepare(sampleRate, samplesPerBlock);
+
+    // Initialize disintegration engine
+    if (sampleBuffer.isLoaded()) {
+        disintegrationEngine.prepare(sampleRate, sampleBuffer.getNumSamples());
+    }
+
+    // Wire disintegration engine to voices
+    for (auto& voice : voices) {
+        voice.setDisintegrationEngine(&disintegrationEngine);
+    }
 }
 
 void PalaceAudioProcessor::releaseResources() {
@@ -92,30 +102,35 @@ bool PalaceAudioProcessor::isBusesLayoutSupported(const BusesLayout& layouts) co
 void PalaceAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                                          juce::MidiBuffer& midiMessages) {
     juce::ScopedNoDenormals noDenormals;
+    buffer.clear();
 
     const int numSamples = buffer.getNumSamples();
 
-    // Clear output buffer
-    buffer.clear();
+    updateLFO(numSamples);
+    updateVoiceParameters();
 
-    // Update LFO
+    // Hit tracking now happens per-sample inside Grain::process()
+
+    processMidiMessages(midiMessages);
+    processVoices(buffer);
+    applyEffects(buffer);
+    applyOutputGain(buffer);
+}
+
+void PalaceAudioProcessor::updateLFO(int numSamples) {
     lfo.setFrequency(parameters.lfoRate->load());
     lfo.setWaveform(static_cast<LFOWaveform>(static_cast<int>(parameters.lfoWaveform->load())));
 
     // Process LFO once per block (use middle of block value)
-    for (int i = 0; i < numSamples / 2; ++i) {
-        lfo.process();
-    }
+    // Advance to middle, compute value, then advance to end
+    lfo.advancePhase(numSamples / 2);
     float lfoValue = lfo.process();
     currentLfoValue.store(lfoValue);
     currentLfoPhase.store(lfo.getPhase());
-    for (int i = numSamples / 2 + 1; i < numSamples; ++i) {
-        lfo.process();
-    }
+    lfo.advancePhase(numSamples - numSamples / 2 - 1);
+}
 
-    // Update voice parameters
-    updateVoiceParameters();
-
+void PalaceAudioProcessor::processMidiMessages(juce::MidiBuffer& midiMessages) {
     // Merge keyboard MIDI with incoming MIDI
     {
         const juce::ScopedLock sl(keyboardMidiLock);
@@ -127,8 +142,10 @@ void PalaceAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     for (const auto metadata : midiMessages) {
         handleMidiEvent(metadata.getMessage());
     }
+}
 
-    // Get output pointers
+void PalaceAudioProcessor::processVoices(juce::AudioBuffer<float>& buffer) {
+    const int numSamples = buffer.getNumSamples();
     float* leftChannel = buffer.getWritePointer(0);
     float* rightChannel = buffer.getWritePointer(1);
 
@@ -139,10 +156,16 @@ void PalaceAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
             voice.incrementAge();
         }
     }
+}
+
+void PalaceAudioProcessor::applyEffects(juce::AudioBuffer<float>& buffer) {
+    const int numSamples = buffer.getNumSamples();
+    float* leftChannel = buffer.getWritePointer(0);
+    float* rightChannel = buffer.getWritePointer(1);
 
     // Apply tape delay
     tapeDelay.setDelayTime(parameters.delayTime->load());
-    tapeDelay.setFeedback(parameters.feedback->load() / 100.0f * 0.85f);
+    tapeDelay.setFeedback(parameters.feedback->load() / 100.0f * MAX_FEEDBACK_SCALING);
     tapeDelay.setFlutter(parameters.flutter->load() / 100.0f);
     tapeDelay.setHiss(parameters.tapeHiss->load() / 100.0f);
     tapeDelay.process(leftChannel, rightChannel, numSamples);
@@ -150,19 +173,16 @@ void PalaceAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     // Apply spring reverb
     const float reverbMix = parameters.reverb->load() / 100.0f;
     if (reverbMix > 0.001f) {
-        // Update reverb parameters
         reverbParams.wetLevel = reverbMix;
-        reverbParams.dryLevel = 1.0f - reverbMix * 0.5f;  // Keep some dry signal
+        reverbParams.dryLevel = 1.0f - reverbMix * REVERB_DRY_RETAIN;
         reverb.setParameters(reverbParams);
-
-        // Process reverb in stereo
         reverb.processStereo(leftChannel, rightChannel, numSamples);
     }
+}
 
-    // Apply output gain
+void PalaceAudioProcessor::applyOutputGain(juce::AudioBuffer<float>& buffer) {
     const float outputDb = parameters.output->load();
     const float outputGain = juce::Decibels::decibelsToGain(outputDb);
-
     buffer.applyGain(outputGain);
 }
 
@@ -208,35 +228,8 @@ void PalaceAudioProcessor::handleMidiEvent(const juce::MidiMessage& message) {
         lastMidiData2.store(ccValue);
         lastReceivedCC.store(ccNumber);
 
-        // Check if we're in MIDI learn mode
-        if (midiLearnParamId.isNotEmpty()) {
-            const juce::ScopedLock sl(midiMappingLock);
-            // Remove any existing mapping for this CC
-            midiMappings.erase(ccNumber);
-            // Remove any existing mapping for this parameter
-            for (auto it = midiMappings.begin(); it != midiMappings.end(); ) {
-                if (it->second == midiLearnParamId) {
-                    it = midiMappings.erase(it);
-                } else {
-                    ++it;
-                }
-            }
-            // Create new mapping
-            midiMappings[ccNumber] = midiLearnParamId;
-            midiLearnParamId.clear();
-        }
-
-        // Apply CC to mapped parameter
-        {
-            const juce::ScopedLock sl(midiMappingLock);
-            auto it = midiMappings.find(ccNumber);
-            if (it != midiMappings.end()) {
-                if (auto* param = apvts.getParameter(it->second)) {
-                    float normalizedValue = ccValue / 127.0f;
-                    param->setValueNotifyingHost(normalizedValue);
-                }
-            }
-        }
+        handleMidiLearn(ccNumber);
+        applyMidiMapping(ccNumber, ccValue);
     } else {
         // Other message types
         lastMidiType.store(4);
@@ -245,12 +238,51 @@ void PalaceAudioProcessor::handleMidiEvent(const juce::MidiMessage& message) {
     }
 }
 
+void PalaceAudioProcessor::handleMidiLearn(int ccNumber) {
+    if (midiLearnParamId.isEmpty())
+        return;
+
+    const juce::ScopedLock sl(midiMappingLock);
+
+    // Remove any existing mapping for this CC
+    midiMappings.erase(ccNumber);
+
+    // Remove any existing mapping for this parameter (one param = one CC)
+    for (auto it = midiMappings.begin(); it != midiMappings.end(); ) {
+        if (it->second == midiLearnParamId) {
+            it = midiMappings.erase(it);
+        } else {
+            ++it;
+        }
+    }
+
+    // Create new mapping
+    midiMappings[ccNumber] = midiLearnParamId;
+    midiLearnParamId.clear();
+}
+
+void PalaceAudioProcessor::applyMidiMapping(int ccNumber, int ccValue) {
+    const juce::ScopedLock sl(midiMappingLock);
+    auto it = midiMappings.find(ccNumber);
+    if (it != midiMappings.end()) {
+        if (auto* param = apvts.getParameter(it->second)) {
+            float normalizedValue = ccValue / 127.0f;
+            param->setValueNotifyingHost(normalizedValue);
+        }
+    }
+}
+
 void PalaceAudioProcessor::updateVoiceParameters() {
+    // Update disintegration engine parameters
+    disintegrationEngine.setMaxLife(parameters.life->load());
+    disintegrationEngine.setEnabled(parameters.damage->load() > 0.01f);
+
     // Get LFO modulation amount
     float lfoAmount = parameters.lfoAmount->load() / 100.0f;
     float lfoMod = currentLfoValue.load() * lfoAmount;
 
-    // Helper to apply LFO modulation
+    // Helper to apply LFO modulation to parameters
+    // If parameter is in lfoModulatedParams set, adds bipolar modulation (±range)
     auto applyMod = [&](const juce::String& paramId, float value, float range) -> float {
         if (lfoModulatedParams.count(paramId) > 0) {
             return value + lfoMod * range;
@@ -258,12 +290,15 @@ void PalaceAudioProcessor::updateVoiceParameters() {
         return value;
     };
 
+    // Build grain engine parameters with LFO modulation
     GrainEngineParameters grainParams;
+
+    // Map user position (0-1) to crop region bounds: start + t*(end-start)
     float rawPosition = juce::jlimit(0.0f, 1.0f, applyMod(ParamIDs::position, parameters.position->load(), 0.5f));
     float cs = cropStart.load();
     float ce = cropEnd.load();
     grainParams.position = cs + rawPosition * (ce - cs);
-    grainParams.grainSizeMs = juce::jlimit(10.0f, 2000.0f, applyMod(ParamIDs::grainSize, parameters.grainSize->load(), 500.0f));
+    grainParams.grainSizeMs = juce::jlimit(10.0f, 8000.0f, applyMod(ParamIDs::grainSize, parameters.grainSize->load(), 500.0f));
 
     // Clamp grain size so the grain window cannot extend past crop boundaries
     if (sampleBuffer.isLoaded() && sampleBuffer.getNumSamples() > 0) {
@@ -279,15 +314,20 @@ void PalaceAudioProcessor::updateVoiceParameters() {
     grainParams.releaseRatio = juce::jlimit(0.0f, 1.0f, applyMod(ParamIDs::grainRelease, parameters.grainRelease->load() / 100.0f, 0.25f));
     grainParams.cropStart = cs;
     grainParams.cropEnd = ce;
+    grainParams.sampleGainDb = parameters.sampleGain->load();
 
     const float attackMs = juce::jlimit(0.0f, 5000.0f, applyMod(ParamIDs::voiceAttack, parameters.voiceAttack->load(), 500.0f));
     const float decayMs = juce::jlimit(0.0f, 5000.0f, applyMod(ParamIDs::voiceDecay, parameters.voiceDecay->load(), 500.0f));
     const float sustain = juce::jlimit(0.0f, 100.0f, applyMod(ParamIDs::voiceSustain, parameters.voiceSustain->load(), 25.0f));
     const float releaseMs = juce::jlimit(0.0f, 10000.0f, applyMod(ParamIDs::voiceRelease, parameters.voiceRelease->load(), 1000.0f));
 
+    // Get disintegration amount
+    const float disintegrationAmount = parameters.damage->load();
+
     for (auto& voice : voices) {
         voice.setGrainParameters(grainParams);
         voice.setADSR(attackMs, decayMs, sustain, releaseMs);
+        voice.setDisintegrationAmount(disintegrationAmount);
     }
 }
 
@@ -385,6 +425,12 @@ void PalaceAudioProcessor::loadSample(const juce::File& file) {
     sampleBuffer.loadFromFile(file);
     cropStart.store(0.0f);
     cropEnd.store(1.0f);
+
+    // Reset damage when loading a new sample
+    disintegrationEngine.reset();
+    if (sampleBuffer.isLoaded()) {
+        disintegrationEngine.prepare(currentSampleRate, sampleBuffer.getNumSamples());
+    }
 }
 
 void PalaceAudioProcessor::setCropRegion(float start, float end) {
@@ -444,6 +490,18 @@ void PalaceAudioProcessor::getStateInformation(juce::MemoryBlock& destData) {
     }
     state.appendChild(lfoModTree, nullptr);
 
+    // Store life map
+    auto lifeMap = disintegrationEngine.getLifeMap();
+    juce::ValueTree lifeTree("Life");
+    for (int i = 0; i < static_cast<int>(lifeMap.size()); ++i) {
+        if (lifeMap[i] < 0.999f) {  // Only save depleted regions
+            lifeTree.setProperty(juce::String(i), lifeMap[i], nullptr);
+        }
+    }
+    if (lifeTree.getNumProperties() > 0) {
+        state.appendChild(lifeTree, nullptr);
+    }
+
     std::unique_ptr<juce::XmlElement> xml(state.createXml());
     copyXmlToBinary(*xml, destData);
 }
@@ -455,16 +513,19 @@ void PalaceAudioProcessor::setStateInformation(const void* data, int sizeInBytes
         auto state = juce::ValueTree::fromXml(*xml);
         apvts.replaceState(state);
 
-        // Load sample if path exists
+        // Load sample if path exists (don't use loadSample() to avoid resetting crop/damage)
         juce::String samplePath = state.getProperty("samplePath", "").toString();
         if (samplePath.isNotEmpty()) {
             juce::File sampleFile(samplePath);
             if (sampleFile.existsAsFile()) {
-                loadSample(sampleFile);
+                sampleBuffer.loadFromFile(sampleFile);
+                if (sampleBuffer.isLoaded()) {
+                    disintegrationEngine.prepare(currentSampleRate, sampleBuffer.getNumSamples());
+                }
             }
         }
 
-        // Load crop region
+        // Load crop region (must be loaded before damage map)
         cropStart.store(static_cast<float>(static_cast<double>(state.getProperty("cropStart", 0.0))));
         cropEnd.store(static_cast<float>(static_cast<double>(state.getProperty("cropEnd", 1.0))));
 
@@ -492,6 +553,31 @@ void PalaceAudioProcessor::setStateInformation(const void* data, int sizeInBytes
                 juce::String param = modTree.getProperty("param", "").toString();
                 if (param.isNotEmpty()) {
                     lfoModulatedParams.insert(param);
+                }
+            }
+        }
+
+        // Load life map (or legacy damage map for backwards compatibility)
+        auto lifeTree = state.getChildWithName("Life");
+        if (lifeTree.isValid()) {
+            disintegrationEngine.reset();  // Reset to full life
+            for (int i = 0; i < lifeTree.getNumProperties(); ++i) {
+                auto prop = lifeTree.getPropertyName(i);
+                int regionIndex = prop.toString().getIntValue();
+                float life = lifeTree.getProperty(prop);
+                disintegrationEngine.setRegionLife(regionIndex, life);
+            }
+        } else {
+            // Legacy support: convert old "Damage" tree to life values
+            auto damageTree = state.getChildWithName("Damage");
+            if (damageTree.isValid()) {
+                disintegrationEngine.reset();  // Reset to full life
+                for (int i = 0; i < damageTree.getNumProperties(); ++i) {
+                    auto prop = damageTree.getPropertyName(i);
+                    int regionIndex = prop.toString().getIntValue();
+                    float damage = damageTree.getProperty(prop);
+                    float life = 1.0f - damage;  // Convert damage to life
+                    disintegrationEngine.setRegionLife(regionIndex, life);
                 }
             }
         }

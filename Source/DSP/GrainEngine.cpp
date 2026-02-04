@@ -1,4 +1,5 @@
 #include "GrainEngine.h"
+#include "TapeDisintegrationEngine.h"
 #include <cmath>
 
 namespace palace {
@@ -11,6 +12,12 @@ GrainEngine::GrainEngine() {
 void GrainEngine::prepare(double sr, int blockSize) {
     sampleRate = sr;
     samplesPerBlock = blockSize;
+
+    // Initialize damage processors
+    for (auto& processor : damageProcessors) {
+        processor.prepare(sr);
+    }
+
     reset();
 }
 
@@ -69,7 +76,22 @@ int GrainEngine::getActiveGrainCount() const {
 
 std::vector<GrainEngine::GrainInfo> GrainEngine::getActiveGrainInfo() const {
     std::vector<GrainInfo> info;
-    // Simplified - would need to expose grain state for full implementation
+    info.reserve(MAX_GRAINS);
+
+    for (const auto& grain : grains) {
+        if (grain.isActive()) {
+            const auto& gParams = grain.getParameters();
+
+            GrainInfo gInfo;
+            gInfo.position = static_cast<float>(gParams.startPosition);  // Absolute sample position
+            gInfo.progress = grain.getProgress();
+            gInfo.pan = gParams.pan;
+            gInfo.sizeInSamples = gParams.sizeInSamples;
+
+            info.push_back(gInfo);
+        }
+    }
+
     return info;
 }
 
@@ -119,6 +141,11 @@ void GrainEngine::triggerGrain(const SampleBuffer& source, float noteRatio) {
     grainParams.amplitude = 1.0f;
     grainParams.attackRatio = params.attackRatio;
     grainParams.releaseRatio = params.releaseRatio;
+    grainParams.sampleGainDb = params.sampleGainDb;
+
+    // Set up damage processors for this grain
+    grains[freeIndex].setDamageProcessors(&damageProcessors[freeIndex], disintegrationEngine);
+    grains[freeIndex].setDisintegrationAmount(disintegrationAmount);
 
     grains[freeIndex].start(grainParams);
 }
@@ -129,6 +156,32 @@ int GrainEngine::findFreeGrain() const {
             return i;
     }
     return -1;  // All grains in use
+}
+
+void GrainEngine::setDisintegrationEngine(TapeDisintegrationEngine* de) {
+    disintegrationEngine = de;
+}
+
+void GrainEngine::setDisintegrationAmount(float amount) {
+    disintegrationAmount = amount;
+}
+
+std::vector<GrainEngine::PlaybackRegion> GrainEngine::getActivePlaybackRegions() const {
+    std::vector<PlaybackRegion> regions;
+    regions.reserve(MAX_GRAINS);
+
+    for (const auto& grain : grains) {
+        if (grain.isActive()) {
+            PlaybackRegion region;
+            region.startSample = grain.getLastPlaybackStart();
+            region.endSample = grain.getLastPlaybackEnd();
+            if (region.startSample >= 0 && region.endSample >= region.startSample) {
+                regions.push_back(region);
+            }
+        }
+    }
+
+    return regions;
 }
 
 } // namespace palace

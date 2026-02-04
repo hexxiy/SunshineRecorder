@@ -8,6 +8,7 @@ PalaceAudioProcessorEditor::PalaceAudioProcessorEditor(PalaceAudioProcessor& p)
 
     // Setup waveform display
     waveformDisplay.setSampleBuffer(&audioProcessor.getSampleBuffer());
+    waveformDisplay.setDisintegrationEngine(&audioProcessor.getDisintegrationEngine());
     waveformDisplay.onFileDropped = [this](const juce::File& file) {
         audioProcessor.loadSample(file);
         waveformDisplay.setSampleBuffer(&audioProcessor.getSampleBuffer());
@@ -104,6 +105,16 @@ PalaceAudioProcessorEditor::PalaceAudioProcessorEditor(PalaceAudioProcessor& p)
     setupKnob(flutterKnob, ParamIDs::flutter, "FLUTTER");
     setupKnob(hissKnob, ParamIDs::tapeHiss, "HISS");
 
+    // Setup tape disintegration knobs
+    setupKnob(damageKnob, ParamIDs::damage, "DAMAGE");
+    setupKnob(lifeKnob, ParamIDs::life, "LIFE");
+
+    // Setup reset damage button
+    resetDamageButton.onClick = [this]() {
+        audioProcessor.getDisintegrationEngine().resetAllLife();
+    };
+    addAndMakeVisible(resetDamageButton);
+
     // Setup effects knobs
     setupKnob(reverbKnob, ParamIDs::reverb, "REVERB");
     setupKnob(feedbackKnob, ParamIDs::feedback, "FEEDBACK");
@@ -111,6 +122,9 @@ PalaceAudioProcessorEditor::PalaceAudioProcessorEditor(PalaceAudioProcessor& p)
     // Setup output knobs
     setupKnob(mixKnob, ParamIDs::mix, "MIX");
     setupKnob(outputKnob, ParamIDs::output, "OUTPUT");
+
+    // Setup sample gain knob
+    setupKnob(sampleGainKnob, ParamIDs::sampleGain, "GAIN");
 
     // Setup keyboard octave controls
     octaveLabel.setText("OCT: " + juce::String(keyboardOctave), juce::dontSendNotification);
@@ -157,10 +171,13 @@ PalaceAudioProcessorEditor::PalaceAudioProcessorEditor(PalaceAudioProcessor& p)
     delayTimeKnob.addMouseListener(this, true);
     flutterKnob.addMouseListener(this, true);
     hissKnob.addMouseListener(this, true);
+    damageKnob.addMouseListener(this, true);
+    lifeKnob.addMouseListener(this, true);
     reverbKnob.addMouseListener(this, true);
     feedbackKnob.addMouseListener(this, true);
     mixKnob.addMouseListener(this, true);
     outputKnob.addMouseListener(this, true);
+    sampleGainKnob.addMouseListener(this, true);
 
     // Start timer for UI updates
     startTimerHz(30);
@@ -198,10 +215,13 @@ PalaceAudioProcessorEditor::~PalaceAudioProcessorEditor() {
     delayTimeKnob.removeMouseListener(this);
     flutterKnob.removeMouseListener(this);
     hissKnob.removeMouseListener(this);
+    damageKnob.removeMouseListener(this);
+    lifeKnob.removeMouseListener(this);
     reverbKnob.removeMouseListener(this);
     feedbackKnob.removeMouseListener(this);
     mixKnob.removeMouseListener(this);
     outputKnob.removeMouseListener(this);
+    sampleGainKnob.removeMouseListener(this);
 
     removeKeyListener(this);
     stopTimer();
@@ -260,6 +280,12 @@ void PalaceAudioProcessorEditor::paint(juce::Graphics& g) {
         drawMidiStatus(g, {margin, getHeight() - static_cast<int>(55 * scaleY), getWidth() - margin * 2, static_cast<int>(22 * scaleY)});
         drawMidiDebug(g, {margin, getHeight() - static_cast<int>(30 * scaleY), getWidth() - margin * 2, static_cast<int>(25 * scaleY)});
     }
+
+    // Draw version info (bottom right corner)
+    g.setColour(OccultLookAndFeel::textDim.withAlpha(0.5f));
+    g.setFont(9.0f);
+    juce::String versionText = "v" PROJECT_VERSION " (" BUILD_TIMESTAMP ")";
+    g.drawText(versionText, getWidth() - 210, getHeight() - 18, 200, 15, juce::Justification::centredRight);
 }
 
 void PalaceAudioProcessorEditor::drawHeader(juce::Graphics& g, juce::Rectangle<int> bounds) {
@@ -394,8 +420,11 @@ void PalaceAudioProcessorEditor::resized() {
     // Load button
     loadButton.setBounds(getWidth() - margin - static_cast<int>(60 * scaleX), headerHeight + margin, static_cast<int>(60 * scaleX), static_cast<int>(30 * scaleY));
 
-    // Grain visualizer (below load button)
-    grainVisualizer.setBounds(getWidth() - margin - static_cast<int>(60 * scaleX), headerHeight + margin + static_cast<int>(35 * scaleY), static_cast<int>(60 * scaleX), waveformHeight - static_cast<int>(35 * scaleY));
+    // Sample gain knob (below load button)
+    sampleGainKnob.setBounds(getWidth() - margin - static_cast<int>(60 * scaleX), headerHeight + margin + static_cast<int>(35 * scaleY), static_cast<int>(60 * scaleX), static_cast<int>(60 * scaleY));
+
+    // Grain visualizer (below sample gain knob)
+    grainVisualizer.setBounds(getWidth() - margin - static_cast<int>(60 * scaleX), headerHeight + margin + static_cast<int>(100 * scaleY), static_cast<int>(60 * scaleX), waveformHeight - static_cast<int>(100 * scaleY));
 
     // Grain controls section
     const int grainSectionY = headerHeight + waveformHeight + margin * 3;
@@ -440,6 +469,21 @@ void PalaceAudioProcessorEditor::resized() {
     delayTimeKnob.setBounds(tapeDelayX, outputSectionY, knobWidth, knobHeight);
     flutterKnob.setBounds(tapeDelayX + knobWidth, outputSectionY, knobWidth, knobHeight);
     hissKnob.setBounds(tapeDelayX + knobWidth * 2, outputSectionY, knobWidth, knobHeight);
+
+    // Tape disintegration section (below tape delay)
+    const int disintegrationY = outputSectionY + knobHeight + static_cast<int>(10 * scaleY);
+    damageKnob.setBounds(tapeDelayX, disintegrationY, knobWidth, knobHeight);
+    lifeKnob.setBounds(tapeDelayX + knobWidth, disintegrationY, knobWidth, knobHeight);
+
+    // Reset damage button (below life knob)
+    const int resetButtonWidth = static_cast<int>(80 * scaleX);
+    const int resetButtonHeight = static_cast<int>(25 * scaleY);
+    resetDamageButton.setBounds(
+        tapeDelayX + knobWidth,
+        disintegrationY + knobHeight + static_cast<int>(5 * scaleY),
+        resetButtonWidth,
+        resetButtonHeight
+    );
 
     // Output section (right of tape delay)
     const int outputSectionX = static_cast<int>(500 * scaleX);
@@ -518,6 +562,7 @@ void PalaceAudioProcessorEditor::mouseDown(const juce::MouseEvent& event) {
             &voiceAttackKnob, &voiceDecayKnob, &voiceSustainKnob, &voiceReleaseKnob,
             &lfoRateKnob, &lfoAmountKnob,
             &delayTimeKnob, &flutterKnob, &hissKnob,
+            &damageKnob, &lifeKnob,
             &reverbKnob, &feedbackKnob, &mixKnob, &outputKnob
         };
 
@@ -542,24 +587,38 @@ void PalaceAudioProcessorEditor::timerCallback() {
     float lfoAmount = audioProcessor.getParameters().lfoAmount->load() / 100.0f;
     float modAmount = lfoValue * lfoAmount;
 
+    // Sync crop region from processor to waveform display
+    float cs = audioProcessor.getCropStart();
+    float ce = audioProcessor.getCropEnd();
+    if (waveformDisplay.getCropStart() != cs || waveformDisplay.getCropEnd() != ce) {
+        waveformDisplay.setCropRegion(cs, ce);
+    }
+
+    // Update sample gain in waveform display
+    waveformDisplay.setSampleGain(audioProcessor.getParameters().sampleGain->load());
+
     // Update waveform position indicator (with LFO modulation if enabled)
     // Remap through crop region so the indicator shows the actual mapped position
     float rawPosition = audioProcessor.getParameters().position->load();
     if (audioProcessor.isLfoModulated(ParamIDs::position)) {
         rawPosition = juce::jlimit(0.0f, 1.0f, rawPosition + modAmount * 0.5f);
     }
-    float cs = audioProcessor.getCropStart();
-    float ce = audioProcessor.getCropEnd();
     float position = cs + rawPosition * (ce - cs);
     waveformDisplay.setPosition(position);
 
     // Update grain size indicator on waveform (with LFO modulation if enabled)
     float grainSizeMs = audioProcessor.getParameters().grainSize->load();
     if (audioProcessor.isLfoModulated(ParamIDs::grainSize)) {
-        // Modulate grain size (range is 10-2000ms, so modulate proportionally)
-        grainSizeMs = juce::jlimit(10.0f, 2000.0f, grainSizeMs + modAmount * 500.0f);
+        // Modulate grain size (range is 10-8000ms, so modulate proportionally)
+        grainSizeMs = juce::jlimit(10.0f, 8000.0f, grainSizeMs + modAmount * 2000.0f);
     }
     const auto& sampleBuffer = audioProcessor.getSampleBuffer();
+
+    // Update active grain visualization
+    if (sampleBuffer.isLoaded()) {
+        auto activeGrains = audioProcessor.getAllActiveGrains();
+        waveformDisplay.setActiveGrains(activeGrains, sampleBuffer.getNumSamples());
+    }
     if (sampleBuffer.isLoaded()) {
         const double sampleDurationMs = (sampleBuffer.getNumSamples() / sampleBuffer.getSampleRate()) * 1000.0;
         // Clamp grain size so it cannot extend past crop boundaries
@@ -638,6 +697,7 @@ void PalaceAudioProcessorEditor::timerCallback() {
         &voiceAttackKnob, &voiceDecayKnob, &voiceSustainKnob, &voiceReleaseKnob,
         &lfoRateKnob, &lfoAmountKnob,
         &delayTimeKnob, &flutterKnob, &hissKnob,
+        &damageKnob, &lifeKnob,
         &reverbKnob, &feedbackKnob, &mixKnob, &outputKnob
     };
 
@@ -851,10 +911,13 @@ juce::String PalaceAudioProcessorEditor::getParamIdForKnob(OccultKnob* knob) {
     if (knob == &delayTimeKnob) return ParamIDs::delayTime;
     if (knob == &flutterKnob) return ParamIDs::flutter;
     if (knob == &hissKnob) return ParamIDs::tapeHiss;
+    if (knob == &damageKnob) return ParamIDs::damage;
+    if (knob == &lifeKnob) return ParamIDs::life;
     if (knob == &reverbKnob) return ParamIDs::reverb;
     if (knob == &feedbackKnob) return ParamIDs::feedback;
     if (knob == &mixKnob) return ParamIDs::mix;
     if (knob == &outputKnob) return ParamIDs::output;
+    if (knob == &sampleGainKnob) return ParamIDs::sampleGain;
     return {};
 }
 

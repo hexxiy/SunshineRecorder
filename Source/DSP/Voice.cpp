@@ -1,4 +1,5 @@
 #include "Voice.h"
+#include "TapeDisintegrationEngine.h"
 #include <cmath>
 
 namespace palace {
@@ -8,6 +9,11 @@ Voice::Voice() = default;
 void Voice::prepare(double sr, int samplesPerBlock) {
     sampleRate = sr;
     grainEngine.prepare(sr, samplesPerBlock);
+
+    // Pre-allocate temporary buffers to avoid allocation in audio thread
+    tempBufferLeft.resize(samplesPerBlock);
+    tempBufferRight.resize(samplesPerBlock);
+
     reset();
 }
 
@@ -65,17 +71,17 @@ void Voice::process(const SampleBuffer& source,
         return;
     }
 
-    // Process grain engine
-    std::vector<float> tempLeft(numSamples, 0.0f);
-    std::vector<float> tempRight(numSamples, 0.0f);
+    // Process grain engine using pre-allocated buffers
+    std::fill(tempBufferLeft.begin(), tempBufferLeft.begin() + numSamples, 0.0f);
+    std::fill(tempBufferRight.begin(), tempBufferRight.begin() + numSamples, 0.0f);
 
-    grainEngine.process(source, tempLeft.data(), tempRight.data(), numSamples, noteRatio);
+    grainEngine.process(source, tempBufferLeft.data(), tempBufferRight.data(), numSamples, noteRatio);
 
     // Apply envelope and velocity, add to output
     const float gain = envelopeValue * velocity;
     for (int i = 0; i < numSamples; ++i) {
-        leftOutput[i] += tempLeft[i] * gain;
-        rightOutput[i] += tempRight[i] * gain;
+        leftOutput[i] += tempBufferLeft[i] * gain;
+        rightOutput[i] += tempBufferRight[i] * gain;
     }
 }
 
@@ -93,7 +99,8 @@ void Voice::setADSR(float attackMs, float decayMs, float sustain, float releaseM
 }
 
 void Voice::updateEnvelope(int numSamples) {
-    // Simple per-block envelope update (could be per-sample for smoother response)
+    // Per-sample ADSR envelope generation with linear ramps
+    // Attack/Decay/Release use constant rate per sample
     for (int i = 0; i < numSamples; ++i) {
         switch (envelopeStage) {
             case EnvelopeStage::Attack:
@@ -131,6 +138,14 @@ void Voice::updateEnvelope(int numSamples) {
                 return;
         }
     }
+}
+
+void Voice::setDisintegrationEngine(TapeDisintegrationEngine* de) {
+    grainEngine.setDisintegrationEngine(de);
+}
+
+void Voice::setDisintegrationAmount(float amount) {
+    grainEngine.setDisintegrationAmount(amount);
 }
 
 } // namespace palace

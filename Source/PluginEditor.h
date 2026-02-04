@@ -83,6 +83,11 @@ private:
     OccultKnob flutterKnob{"FLUTTER"};
     OccultKnob hissKnob{"HISS"};
 
+    // Tape Disintegration
+    OccultKnob damageKnob{"DAMAGE"};
+    OccultKnob lifeKnob{"LIFE"};
+    juce::TextButton resetDamageButton{"Reset Damage"};
+
     // Effects
     OccultKnob reverbKnob{"REVERB"};
     OccultKnob feedbackKnob{"FEEDBACK"};
@@ -91,13 +96,16 @@ private:
     OccultKnob mixKnob{"MIX"};
     OccultKnob outputKnob{"OUTPUT"};
 
+    // Sample
+    OccultKnob sampleGainKnob{"GAIN"};
+
     // Keyboard MIDI state
     int keyboardOctave = 4;  // Middle C octave
     std::set<int> activeKeys;  // Currently held key codes
     juce::Label octaveLabel;
     juce::TextButton octaveDownButton{"-"};
     juce::TextButton octaveUpButton{"+"};
-    bool keyboardActive = false;  // Keyboard input enabled
+    bool keyboardActive = true;  // Keyboard input enabled (default: on)
 
     // MIDI learn mode
     bool midiLearnMode = false;

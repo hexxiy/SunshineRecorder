@@ -5,7 +5,7 @@ namespace palace {
 
 OccultKnob::OccultKnob(const juce::String& labelText) {
     slider.setSliderStyle(juce::Slider::RotaryVerticalDrag);
-    slider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 60, 16);
+    slider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 70, 16);  // Increased width to 70 for unit labels
     slider.setBufferedToImage(true);
     addAndMakeVisible(slider);
 
@@ -117,6 +117,18 @@ void OccultKnob::resized() {
 
 void OccultKnob::setAttachment(juce::AudioProcessorValueTreeState& apvts, const juce::String& paramId) {
     attachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(apvts, paramId, slider);
+
+    // Get the parameter to access its label
+    if (auto* param = apvts.getParameter(paramId)) {
+        // Set up text conversion to include parameter label/units
+        slider.textFromValueFunction = [param](double value) {
+            return param->getText(param->convertTo0to1(static_cast<float>(value)), 0);
+        };
+
+        slider.valueFromTextFunction = [param](const juce::String& text) {
+            return static_cast<double>(param->convertFrom0to1(param->getValueForText(text)));
+        };
+    }
 }
 
 } // namespace palace

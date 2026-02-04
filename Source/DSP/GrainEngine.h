@@ -1,11 +1,14 @@
 #pragma once
 
-#include "Grain.h"
 #include "SampleBuffer.h"
+#include "TapeDamageProcessor.h"
+#include "Grain.h"
 #include <array>
 #include <random>
 
 namespace palace {
+
+class TapeDisintegrationEngine;
 
 struct GrainEngineParameters {
     float position = 0.0f;       // 0-1 normalized position in sample
@@ -18,6 +21,7 @@ struct GrainEngineParameters {
     float releaseRatio = 0.25f;  // Grain envelope release (0-1)
     float cropStart = 0.0f;     // Crop region start (0-1)
     float cropEnd = 1.0f;       // Crop region end (0-1)
+    float sampleGainDb = 0.0f;   // Sample gain in dB
 };
 
 class GrainEngine {
@@ -44,11 +48,23 @@ public:
 
     // Get active grain info for visualization
     struct GrainInfo {
-        float position;  // 0-1 in sample
-        float progress;  // 0-1 through grain
-        float pan;
+        float position;   // Absolute sample position
+        float progress;   // 0-1 through grain
+        float pan;        // -1 to 1
+        int sizeInSamples; // Grain size in samples (for drawing)
     };
     std::vector<GrainInfo> getActiveGrainInfo() const;
+
+    // Tape disintegration support
+    void setDisintegrationEngine(TapeDisintegrationEngine* de);
+    void setDisintegrationAmount(float amount);
+
+    // Get playback regions from all active grains (for damage tracking)
+    struct PlaybackRegion {
+        int startSample;
+        int endSample;
+    };
+    std::vector<PlaybackRegion> getActivePlaybackRegions() const;
 
 private:
     void triggerGrain(const SampleBuffer& source, float noteRatio);
@@ -67,6 +83,11 @@ private:
     // Random number generation
     std::mt19937 rng;
     std::uniform_real_distribution<float> dist{-1.0f, 1.0f};
+
+    // Tape disintegration
+    std::array<TapeDamageProcessor, MAX_GRAINS> damageProcessors;
+    TapeDisintegrationEngine* disintegrationEngine = nullptr;
+    float disintegrationAmount = 0.0f;
 };
 
 } // namespace palace

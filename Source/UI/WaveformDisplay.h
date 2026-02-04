@@ -2,8 +2,11 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "../DSP/SampleBuffer.h"
+#include "../DSP/GrainEngine.h"
 
 namespace palace {
+
+class TapeDisintegrationEngine;
 
 class WaveformDisplay : public juce::Component,
                         public juce::FileDragAndDropTarget {
@@ -14,6 +17,15 @@ public:
     void setSampleBuffer(const SampleBuffer* buffer);
     void setPosition(float normalizedPosition);  // 0-1
     void setGrainSize(float normalizedSize);     // 0-1 relative to sample length
+
+    // Active grain visualization
+    void setActiveGrains(const std::vector<GrainEngine::GrainInfo>& grains, int totalSamples);
+
+    // Tape disintegration
+    void setDisintegrationEngine(const TapeDisintegrationEngine* de);
+
+    // Sample gain
+    void setSampleGain(float gainDb);
 
     // Zoom controls
     void zoomIn();
@@ -43,6 +55,7 @@ public:
     // Crop region
     float getCropStart() const { return cropStart; }
     float getCropEnd() const { return cropEnd; }
+    void setCropRegion(float start, float end);
     void resetCrop();
 
     // Callback when crop handles are changed
@@ -56,6 +69,7 @@ private:
     bool isNearCropHandle(float screenX, float handleNormalized, float tolerance = 6.0f) const;
 
     const SampleBuffer* sampleBuffer = nullptr;
+    const TapeDisintegrationEngine* disintegrationEngine = nullptr;
     juce::Path waveformPath;
     juce::Image cachedWaveform;
     float currentPosition = 0.0f;
@@ -63,10 +77,17 @@ private:
     bool isDraggingFile = false;
     bool waveformNeedsUpdate = true;
 
+    // Active grain visualization
+    std::vector<GrainEngine::GrainInfo> activeGrains;
+    int totalSampleCount = 0;
+
     // Zoom and pan state
     float zoomLevel = 1.0f;      // 1.0 = full view, higher = zoomed in
     float viewStart = 0.0f;      // Start of visible region (0-1)
     float lastDragX = 0.0f;      // For panning
+
+    // Sample gain
+    float sampleGainDb = 0.0f;   // Gain in dB to apply to visualization
 
     // Crop state
     float cropStart = 0.0f;
@@ -77,6 +98,7 @@ private:
     // Cache state to avoid unnecessary regeneration
     float lastViewStart = -1.0f;
     float lastZoomLevel = -1.0f;
+    float lastSampleGain = -999.0f;
     int lastWidth = -1;
     int lastHeight = -1;
 

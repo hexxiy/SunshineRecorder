@@ -31,6 +31,10 @@ namespace ParamIDs {
     inline constexpr const char* flutter   = "flutter";
     inline constexpr const char* tapeHiss  = "tapeHiss";
 
+    // Tape Disintegration
+    inline constexpr const char* damage = "damage";
+    inline constexpr const char* life   = "life";
+
     // Effects
     inline constexpr const char* reverb = "reverb";
     inline constexpr const char* feedback = "feedback";
@@ -38,6 +42,9 @@ namespace ParamIDs {
     // Output
     inline constexpr const char* mix    = "mix";
     inline constexpr const char* output = "output";
+
+    // Sample
+    inline constexpr const char* sampleGain = "sampleGain";
 }
 
 class Parameters {
@@ -72,6 +79,10 @@ public:
     std::atomic<float>* flutter   = nullptr;
     std::atomic<float>* tapeHiss  = nullptr;
 
+    // Tape Disintegration
+    std::atomic<float>* damage = nullptr;
+    std::atomic<float>* life   = nullptr;
+
     // Effects
     std::atomic<float>* reverb = nullptr;
     std::atomic<float>* feedback = nullptr;
@@ -79,6 +90,9 @@ public:
     // Output
     std::atomic<float>* mix    = nullptr;
     std::atomic<float>* output = nullptr;
+
+    // Sample
+    std::atomic<float>* sampleGain = nullptr;
 
 private:
     void attachParameters(juce::AudioProcessorValueTreeState& apvts);

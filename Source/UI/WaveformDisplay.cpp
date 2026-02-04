@@ -1,5 +1,6 @@
 #include "WaveformDisplay.h"
 #include "OccultLookAndFeel.h"
+#include "../DSP/TapeDisintegrationEngine.h"
 #include <vector>
 
 namespace palace {
@@ -18,6 +19,12 @@ void WaveformDisplay::setSampleBuffer(const SampleBuffer* buffer) {
     cropEnd = 1.0f;
     currentDrag = DragTarget::None;
     invalidateWaveformCache();
+    repaint();
+}
+
+void WaveformDisplay::setCropRegion(float start, float end) {
+    cropStart = juce::jlimit(0.0f, 1.0f, start);
+    cropEnd = juce::jlimit(0.0f, 1.0f, end);
     repaint();
 }
 
@@ -59,6 +66,25 @@ void WaveformDisplay::setPosition(float normalizedPosition) {
 
 void WaveformDisplay::setGrainSize(float normalizedSize) {
     currentGrainSize = normalizedSize;
+    repaint();
+}
+
+void WaveformDisplay::setDisintegrationEngine(const TapeDisintegrationEngine* de) {
+    disintegrationEngine = de;
+    repaint();
+}
+
+void WaveformDisplay::setSampleGain(float gainDb) {
+    if (sampleGainDb != gainDb) {
+        sampleGainDb = gainDb;
+        invalidateWaveformCache();
+        repaint();
+    }
+}
+
+void WaveformDisplay::setActiveGrains(const std::vector<GrainEngine::GrainInfo>& grains, int totalSamples) {
+    activeGrains = grains;
+    totalSampleCount = totalSamples;
     repaint();
 }
 
@@ -141,6 +167,93 @@ void WaveformDisplay::paint(juce::Graphics& g) {
             float cropEndScreen = normalizedToScreen(cropEnd);
             g.fillRect(cropEndScreen, waveformBounds.getY(),
                        waveformBounds.getRight() - cropEndScreen, waveformBounds.getHeight());
+        }
+    }
+
+    // Draw active grains visualization
+    if (!activeGrains.empty() && totalSampleCount > 0) {
+        const float viewEnd = viewStart + 1.0f / zoomLevel;
+
+        for (const auto& grain : activeGrains) {
+            // Convert grain position to normalized (0-1)
+            float grainPosNorm = grain.position / totalSampleCount;
+            float grainSizeNorm = static_cast<float>(grain.sizeInSamples) / totalSampleCount;
+
+            // Calculate grain region bounds
+            float grainStart = grainPosNorm;
+            float grainEnd = grainStart + grainSizeNorm;
+
+            // Check if grain is visible in current view
+            if (grainEnd < viewStart || grainStart > viewEnd) continue;
+
+            // Clamp to visible portion
+            float visibleStart = std::max(grainStart, viewStart);
+            float visibleEnd = std::min(grainEnd, viewEnd);
+
+            // Convert to screen coordinates
+            float screenX = normalizedToScreen(visibleStart);
+            float screenWidth = normalizedToScreen(visibleEnd) - screenX;
+
+            // Color based on progress (fade out as grain completes)
+            float alpha = (1.0f - grain.progress) * 0.35f;  // Fade from 35% to 0%
+
+            // Different colors for left/right panned grains
+            juce::Colour grainColor;
+            if (grain.pan < -0.1f) {
+                // Left-panned grains are blue-ish
+                grainColor = juce::Colour(0x40, 0x80, 0xFF).withAlpha(alpha);
+            } else if (grain.pan > 0.1f) {
+                // Right-panned grains are orange-ish
+                grainColor = juce::Colour(0xFF, 0x80, 0x40).withAlpha(alpha);
+            } else {
+                // Center grains are amber
+                grainColor = OccultLookAndFeel::amber.withAlpha(alpha);
+            }
+
+            // Draw grain region
+            g.setColour(grainColor);
+            g.fillRect(screenX, waveformBounds.getY(), screenWidth, waveformBounds.getHeight());
+
+            // Draw grain edge markers (stronger at attack, fade during release)
+            if (grain.progress < 0.2f) {
+                // Attack phase - bright edge
+                g.setColour(grainColor.brighter(0.5f).withAlpha(alpha * 2.0f));
+                g.drawLine(screenX, waveformBounds.getY(), screenX, waveformBounds.getBottom(), 1.5f);
+            }
+        }
+    }
+
+    // Draw tape disintegration life depletion overlay (always show if damage exists)
+    if (disintegrationEngine && sampleBuffer) {
+        auto lifeMap = disintegrationEngine->getLifeMap();
+        const int numRegions = static_cast<int>(lifeMap.size());
+        const float viewEnd = viewStart + 1.0f / zoomLevel;
+
+        for (int i = 0; i < numRegions; ++i) {
+            float life = lifeMap[i];
+            float damage = 1.0f - life;  // Convert life to damage
+            if (damage < 0.001f) continue;  // Only skip if essentially no damage
+
+            // Calculate normalized position in ABSOLUTE sample space (0-1 over full sample)
+            float regionStart = static_cast<float>(i) / numRegions;
+            float regionEnd = static_cast<float>(i + 1) / numRegions;
+
+            // Check if region is visible in current view
+            if (regionEnd < viewStart || regionStart > viewEnd) continue;
+
+            // Clamp to visible portion
+            float visibleStart = std::max(regionStart, viewStart);
+            float visibleEnd = std::min(regionEnd, viewEnd);
+
+            // Convert to screen coordinates
+            float screenX = normalizedToScreen(visibleStart);
+            float screenWidth = normalizedToScreen(visibleEnd) - screenX;
+
+            // Draw life depletion overlay (red with opacity based on damage)
+            // 0% life = full red (100% opacity), 50% life = 50% opacity, 100% life = no overlay
+            juce::Colour damageColor = juce::Colour(0xFF, 0x00, 0x00).withAlpha(damage * 0.8f);
+            g.setColour(damageColor);
+            g.fillRect(screenX, waveformBounds.getY(), screenWidth, waveformBounds.getHeight());
         }
     }
 
@@ -429,6 +542,7 @@ void WaveformDisplay::generateWaveformPath() {
         lastZoomLevel == zoomLevel &&
         lastWidth == width &&
         lastHeight == height &&
+        lastSampleGain == sampleGainDb &&
         cachedWaveform.isValid()) {
         return;
     }
@@ -466,7 +580,10 @@ void WaveformDisplay::generateWaveformPath() {
     const auto& buffer = sampleBuffer->getBuffer();
     const int numChannels = buffer.getNumChannels();
     const float centerY = height * 0.5f;
-    const float amplitude = height * 0.45f;
+
+    // Apply sample gain to amplitude (convert dB to linear)
+    float gainLinear = std::pow(10.0f, sampleGainDb / 20.0f);
+    const float amplitude = height * 0.45f * gainLinear;
 
     // Build optimized path with single pass
     waveformPath.clear();
@@ -530,6 +647,7 @@ void WaveformDisplay::generateWaveformPath() {
     // Update cache state
     lastViewStart = viewStart;
     lastZoomLevel = zoomLevel;
+    lastSampleGain = sampleGainDb;
     lastWidth = width;
     lastHeight = height;
     waveformNeedsUpdate = false;
@@ -540,6 +658,7 @@ void WaveformDisplay::invalidateWaveformCache() {
     cachedWaveform = juce::Image();
     lastViewStart = -1.0f;
     lastZoomLevel = -1.0f;
+    lastSampleGain = -999.0f;
     lastWidth = -1;
     lastHeight = -1;
 }

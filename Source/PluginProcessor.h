@@ -3,6 +3,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_dsp/juce_dsp.h>
 #include "DSP/SampleBuffer.h"
+#include "DSP/TapeDisintegrationEngine.h"
 #include "DSP/Voice.h"
 #include "DSP/LFO.h"
 #include "DSP/TapeDelay.h"
@@ -12,13 +13,6 @@
 #include <set>
 
 namespace palace {
-
-// MIDI CC to parameter mapping
-struct MidiMapping {
-    int ccNumber = -1;
-    juce::String paramId;
-};
-
 
 class PalaceAudioProcessor : public juce::AudioProcessor {
 public:
@@ -87,6 +81,22 @@ public:
     float getCropStart() const { return cropStart.load(); }
     float getCropEnd() const { return cropEnd.load(); }
 
+    // Tape disintegration
+    TapeDisintegrationEngine& getDisintegrationEngine() { return disintegrationEngine; }
+    const TapeDisintegrationEngine& getDisintegrationEngine() const { return disintegrationEngine; }
+
+    // Grain visualization - get all active grains from all voices
+    std::vector<GrainEngine::GrainInfo> getAllActiveGrains() const {
+        std::vector<GrainEngine::GrainInfo> allGrains;
+        for (const auto& voice : voices) {
+            if (voice.isActive()) {
+                auto voiceGrains = voice.getActiveGrainInfo();
+                allGrains.insert(allGrains.end(), voiceGrains.begin(), voiceGrains.end());
+            }
+        }
+        return allGrains;
+    }
+
     // MIDI learn
     void setMidiLearnParameter(const juce::String& paramId) { midiLearnParamId = paramId; }
     void clearMidiLearnParameter() { midiLearnParamId.clear(); }
@@ -103,49 +113,60 @@ public:
     int getLastMidiData2() const { return lastMidiData2.load(); }
 
 private:
+    // Audio processing constants
+    static constexpr float MAX_FEEDBACK_SCALING = 0.85f;   // Prevent runaway feedback
+    static constexpr float REVERB_DRY_RETAIN = 0.5f;       // Preserve dry signal in mix
+    static constexpr double TAIL_LENGTH_SECONDS = 10.0;    // Max release envelope time
+
     void handleMidiEvent(const juce::MidiMessage& message);
+    void handleMidiLearn(int ccNumber);
+    void applyMidiMapping(int ccNumber, int ccValue);
+    void updateLFO(int numSamples);
+    void processMidiMessages(juce::MidiBuffer& midiMessages);
+    void processVoices(juce::AudioBuffer<float>& buffer);
+    void applyEffects(juce::AudioBuffer<float>& buffer);
+    void applyOutputGain(juce::AudioBuffer<float>& buffer);
     void updateVoiceParameters();
     Voice* findFreeVoice();
     Voice* findVoiceForNote(int midiNote);
     Voice* stealVoice();
 
+    // === Core DSP Components ===
     juce::AudioProcessorValueTreeState apvts;
     Parameters parameters;
-
     SampleBuffer sampleBuffer;
     std::array<Voice, NUM_VOICES> voices;
 
+    // === Audio Configuration ===
     double currentSampleRate = 44100.0;
     int currentBlockSize = 512;
 
-    // Spring reverb
+    // === Effects ===
     juce::Reverb reverb;
     juce::Reverb::Parameters reverbParams;
-
-    // Tape delay
     TapeDelay tapeDelay;
+    TapeDisintegrationEngine disintegrationEngine;
 
-    // LFO
+    // === Modulation ===
     LFO lfo;
     std::set<juce::String> lfoModulatedParams;
     std::atomic<float> currentLfoValue{0.0f};
     std::atomic<float> currentLfoPhase{0.0f};
 
-    // Keyboard MIDI buffer (thread-safe)
+    // === MIDI Processing ===
     juce::MidiBuffer keyboardMidiBuffer;
     juce::CriticalSection keyboardMidiLock;
 
-    // MIDI CC mapping
     std::map<int, juce::String> midiMappings;  // CC number -> param ID
-    juce::String midiLearnParamId;  // Parameter waiting for CC assignment
+    juce::String midiLearnParamId;              // Parameter awaiting CC assignment
     std::atomic<int> lastReceivedCC{-1};
     juce::CriticalSection midiMappingLock;
 
-    // Crop region
+    // === Sample Editing ===
     std::atomic<float> cropStart{0.0f};
     std::atomic<float> cropEnd{1.0f};
 
-    // MIDI debug
+    // === MIDI Debug Telemetry ===
     std::atomic<int> midiMessageCount{0};
     std::atomic<int> lastMidiChannel{0};
     std::atomic<int> lastMidiType{0};
