@@ -395,102 +395,238 @@ void PalaceAudioProcessorEditor::drawSectionBorder(juce::Graphics& g, juce::Rect
 }
 
 void PalaceAudioProcessorEditor::resized() {
+    // SVG-based layout (generated from SR.svg via svg_to_juce.py)
     const float scaleX = getWidth() / 850.0f;
     const float scaleY = getHeight() / 720.0f;
     const float scale = std::min(scaleX, scaleY);
+    const int knobWidth = static_cast<int>(85 * scaleX);
+    const int knobHeight = static_cast<int>(100 * scaleY);
 
-    const int margin = static_cast<int>(20 * scale);  // Increased padding for window borders
-    const int headerHeight = static_cast<int>(50 * scaleY);
-    const int waveformHeight = static_cast<int>(120 * scaleY);
-    const int knobWidth = static_cast<int>(85 * scale);
-    const int knobHeight = static_cast<int>(100 * scale);
-
-    // Zoom buttons (left of waveform, stacked vertically)
-    const int zoomButtonSize = static_cast<int>(28 * scale);
-    const int zoomButtonX = margin;
-    const int zoomButtonY = headerHeight + margin + (waveformHeight - zoomButtonSize * 2 - 4) / 2;
-    zoomInButton.setBounds(zoomButtonX, zoomButtonY, zoomButtonSize, zoomButtonSize);
-    zoomOutButton.setBounds(zoomButtonX, zoomButtonY + zoomButtonSize + 4, zoomButtonSize, zoomButtonSize);
-
-    // Waveform display (shifted right to make room for zoom buttons)
-    const int waveformX = margin + zoomButtonSize + static_cast<int>(5 * scaleX);
-    auto waveformBounds = juce::Rectangle<int>(waveformX, headerHeight + margin, getWidth() - waveformX - margin - static_cast<int>(70 * scaleX), waveformHeight);
-    waveformDisplay.setBounds(waveformBounds);
-
-    // Load button
-    loadButton.setBounds(getWidth() - margin - static_cast<int>(60 * scaleX), headerHeight + margin, static_cast<int>(60 * scaleX), static_cast<int>(30 * scaleY));
-
-    // Sample gain knob (below load button)
-    sampleGainKnob.setBounds(getWidth() - margin - static_cast<int>(60 * scaleX), headerHeight + margin + static_cast<int>(35 * scaleY), static_cast<int>(60 * scaleX), static_cast<int>(60 * scaleY));
-
-    // Grain visualizer (below sample gain knob)
-    grainVisualizer.setBounds(getWidth() - margin - static_cast<int>(60 * scaleX), headerHeight + margin + static_cast<int>(100 * scaleY), static_cast<int>(60 * scaleX), waveformHeight - static_cast<int>(100 * scaleY));
-
-    // Grain controls section
-    const int grainSectionY = headerHeight + waveformHeight + margin * 3;
-    const int grainSectionX = margin + static_cast<int>(20 * scaleX);
-
-    positionKnob.setBounds(grainSectionX, grainSectionY, knobWidth, knobHeight);
-    grainSizeKnob.setBounds(grainSectionX + knobWidth, grainSectionY, knobWidth, knobHeight);
-    densityKnob.setBounds(grainSectionX + knobWidth * 2, grainSectionY, knobWidth, knobHeight);
-    pitchKnob.setBounds(grainSectionX + knobWidth * 3, grainSectionY, knobWidth, knobHeight);
-    sprayKnob.setBounds(grainSectionX + knobWidth * 4, grainSectionY, knobWidth, knobHeight);
-
-    // Grain envelope row
-    const int grainEnvY = grainSectionY + knobHeight + static_cast<int>(10 * scaleY);
-    panSpreadKnob.setBounds(grainSectionX, grainEnvY, knobWidth, knobHeight);
-    grainAttackKnob.setBounds(grainSectionX + knobWidth, grainEnvY, knobWidth, knobHeight);
-    grainReleaseKnob.setBounds(grainSectionX + knobWidth * 2, grainEnvY, knobWidth, knobHeight);
-
-    // Voice ADSR section
-    const int adsrSectionX = static_cast<int>(510 * scaleX);
-    voiceAttackKnob.setBounds(adsrSectionX, grainSectionY, knobWidth, knobHeight);
-    voiceDecayKnob.setBounds(adsrSectionX + knobWidth, grainSectionY, knobWidth, knobHeight);
-    voiceSustainKnob.setBounds(adsrSectionX, grainEnvY, knobWidth, knobHeight);
-    voiceReleaseKnob.setBounds(adsrSectionX + knobWidth, grainEnvY, knobWidth, knobHeight);
-
-    // LFO section (bottom left) - horizontal layout
-    const int lfoSectionY = grainEnvY + knobHeight + static_cast<int>(30 * scaleY);
-    const int lfoSectionX = static_cast<int>(20 * scaleX);
-    const int lfoVisualizerHeight = static_cast<int>(50 * scaleY);
-
-    // LFO visualizer above the knobs
-    lfoVisualizer.setBounds(lfoSectionX, lfoSectionY, knobWidth * 2, lfoVisualizerHeight);
-
-    // Knobs below the visualizer
-    const int lfoKnobY = lfoSectionY + lfoVisualizerHeight + static_cast<int>(5 * scaleY);
-    lfoRateKnob.setBounds(lfoSectionX, lfoKnobY, knobWidth, knobHeight);
-    lfoAmountKnob.setBounds(lfoSectionX + knobWidth, lfoKnobY, knobWidth, knobHeight);
-    lfoWaveformBox.setBounds(lfoSectionX + static_cast<int>(5 * scaleX), lfoKnobY + knobHeight, knobWidth * 2 - static_cast<int>(10 * scaleX), static_cast<int>(22 * scaleY));
-
-    // Tape delay section (right of LFO)
-    const int outputSectionY = lfoSectionY;
-    const int tapeDelayX = static_cast<int>(220 * scaleX);
-    delayTimeKnob.setBounds(tapeDelayX, outputSectionY, knobWidth, knobHeight);
-    flutterKnob.setBounds(tapeDelayX + knobWidth, outputSectionY, knobWidth, knobHeight);
-    hissKnob.setBounds(tapeDelayX + knobWidth * 2, outputSectionY, knobWidth, knobHeight);
-
-    // Tape disintegration section (below tape delay)
-    const int disintegrationY = outputSectionY + knobHeight + static_cast<int>(10 * scaleY);
-    damageKnob.setBounds(tapeDelayX, disintegrationY, knobWidth, knobHeight);
-    lifeKnob.setBounds(tapeDelayX + knobWidth, disintegrationY, knobWidth, knobHeight);
-
-    // Reset damage button (below life knob)
-    const int resetButtonWidth = static_cast<int>(80 * scaleX);
-    const int resetButtonHeight = static_cast<int>(25 * scaleY);
-    resetDamageButton.setBounds(
-        tapeDelayX + knobWidth,
-        disintegrationY + knobHeight + static_cast<int>(5 * scaleY),
-        resetButtonWidth,
-        resetButtonHeight
+    // Waveform section
+    zoomInButton.setBounds(
+        static_cast<int>(19 * scaleX),
+        static_cast<int>(87 * scaleY),
+        static_cast<int>(26 * scaleX),
+        static_cast<int>(27 * scaleY)
+    );
+    zoomOutButton.setBounds(
+        static_cast<int>(19 * scaleX),
+        static_cast<int>(117 * scaleY),
+        static_cast<int>(26 * scaleX),
+        static_cast<int>(27 * scaleY)
+    );
+    waveformDisplay.setBounds(
+        static_cast<int>(53 * scaleX),
+        static_cast<int>(68 * scaleY),
+        static_cast<int>(567 * scaleX),
+        static_cast<int>(121 * scaleY)
+    );
+    loadButton.setBounds(
+        static_cast<int>(631 * scaleX),
+        static_cast<int>(68 * scaleY),
+        static_cast<int>(57 * scaleX),
+        static_cast<int>(30 * scaleY)
+    );
+    sampleGainKnob.setBounds(
+        static_cast<int>(751 * scaleX) - knobWidth/2,
+        static_cast<int>(127 * scaleY) - knobHeight/2,
+        knobWidth,
+        knobHeight
+    );
+    grainVisualizer.setBounds(
+        static_cast<int>(631 * scaleX),
+        static_cast<int>(167 * scaleY),
+        static_cast<int>(57 * scaleX),
+        static_cast<int>(19 * scaleY)
     );
 
-    // Output section (right of tape delay)
-    const int outputSectionX = static_cast<int>(500 * scaleX);
-    reverbKnob.setBounds(outputSectionX, outputSectionY, knobWidth, knobHeight);
-    feedbackKnob.setBounds(outputSectionX + knobWidth, outputSectionY, knobWidth, knobHeight);
-    mixKnob.setBounds(outputSectionX + knobWidth * 2, outputSectionY, knobWidth, knobHeight);
-    outputKnob.setBounds(outputSectionX + knobWidth * 3, outputSectionY, knobWidth, knobHeight);
+    // Grain controls
+    positionKnob.setBounds(
+        static_cast<int>(64 * scaleX) - knobWidth/2,
+        static_cast<int>(254 * scaleY) - knobHeight/2,
+        knobWidth,
+        knobHeight
+    );
+    grainSizeKnob.setBounds(
+        static_cast<int>(147 * scaleX) - knobWidth/2,
+        static_cast<int>(254 * scaleY) - knobHeight/2,
+        knobWidth,
+        knobHeight
+    );
+    densityKnob.setBounds(
+        static_cast<int>(230 * scaleX) - knobWidth/2,
+        static_cast<int>(254 * scaleY) - knobHeight/2,
+        knobWidth,
+        knobHeight
+    );
+    pitchKnob.setBounds(
+        static_cast<int>(314 * scaleX) - knobWidth/2,
+        static_cast<int>(254 * scaleY) - knobHeight/2,
+        knobWidth,
+        knobHeight
+    );
+    sprayKnob.setBounds(
+        static_cast<int>(397 * scaleX) - knobWidth/2,
+        static_cast<int>(254 * scaleY) - knobHeight/2,
+        knobWidth,
+        knobHeight
+    );
+    panSpreadKnob.setBounds(
+        static_cast<int>(64 * scaleX) - knobWidth/2,
+        static_cast<int>(352 * scaleY) - knobHeight/2,
+        knobWidth,
+        knobHeight
+    );
+    grainAttackKnob.setBounds(
+        static_cast<int>(147 * scaleX) - knobWidth/2,
+        static_cast<int>(352 * scaleY) - knobHeight/2,
+        knobWidth,
+        knobHeight
+    );
+    grainReleaseKnob.setBounds(
+        static_cast<int>(230 * scaleX) - knobWidth/2,
+        static_cast<int>(352 * scaleY) - knobHeight/2,
+        knobWidth,
+        knobHeight
+    );
+
+    // Voice ADSR
+    voiceAttackKnob.setBounds(
+        static_cast<int>(567 * scaleX) - knobWidth/2,
+        static_cast<int>(254 * scaleY) - knobHeight/2,
+        knobWidth,
+        knobHeight
+    );
+    voiceDecayKnob.setBounds(
+        static_cast<int>(650 * scaleX) - knobWidth/2,
+        static_cast<int>(254 * scaleY) - knobHeight/2,
+        knobWidth,
+        knobHeight
+    );
+    voiceSustainKnob.setBounds(
+        static_cast<int>(567 * scaleX) - knobWidth/2,
+        static_cast<int>(352 * scaleY) - knobHeight/2,
+        knobWidth,
+        knobHeight
+    );
+    voiceReleaseKnob.setBounds(
+        static_cast<int>(650 * scaleX) - knobWidth/2,
+        static_cast<int>(352 * scaleY) - knobHeight/2,
+        knobWidth,
+        knobHeight
+    );
+
+    // LFO section
+    lfoVisualizer.setBounds(
+        static_cast<int>(34 * scaleX),
+        static_cast<int>(447 * scaleY),
+        static_cast<int>(166 * scaleX),
+        static_cast<int>(49 * scaleY)
+    );
+    lfoRateKnob.setBounds(
+        static_cast<int>(72 * scaleX) - knobWidth/2,
+        static_cast<int>(549 * scaleY) - knobHeight/2,
+        knobWidth,
+        knobHeight
+    );
+    lfoAmountKnob.setBounds(
+        static_cast<int>(155 * scaleX) - knobWidth/2,
+        static_cast<int>(549 * scaleY) - knobHeight/2,
+        knobWidth,
+        knobHeight
+    );
+    lfoWaveformBox.setBounds(
+        static_cast<int>(42 * scaleX),
+        static_cast<int>(603 * scaleY),
+        static_cast<int>(151 * scaleX),
+        static_cast<int>(23 * scaleY)
+    );
+
+    // Tape delay
+    delayTimeKnob.setBounds(
+        static_cast<int>(268 * scaleX) - knobWidth/2,
+        static_cast<int>(496 * scaleY) - knobHeight/2,
+        knobWidth,
+        knobHeight
+    );
+    flutterKnob.setBounds(
+        static_cast<int>(351 * scaleX) - knobWidth/2,
+        static_cast<int>(496 * scaleY) - knobHeight/2,
+        knobWidth,
+        knobHeight
+    );
+    hissKnob.setBounds(
+        static_cast<int>(434 * scaleX) - knobWidth/2,
+        static_cast<int>(496 * scaleY) - knobHeight/2,
+        knobWidth,
+        knobHeight
+    );
+
+    // Tape disintegration
+    damageKnob.setBounds(
+        static_cast<int>(268 * scaleX) - knobWidth/2,
+        static_cast<int>(595 * scaleY) - knobHeight/2,
+        knobWidth,
+        knobHeight
+    );
+    lifeKnob.setBounds(
+        static_cast<int>(351 * scaleX) - knobWidth/2,
+        static_cast<int>(595 * scaleY) - knobHeight/2,
+        knobWidth,
+        knobHeight
+    );
+    resetDamageButton.setBounds(
+        static_cast<int>(389 * scaleX),
+        static_cast<int>(644 * scaleY),
+        static_cast<int>(76 * scaleX),
+        static_cast<int>(25 * scaleY)
+    );
+
+    // Output section
+    reverbKnob.setBounds(
+        static_cast<int>(559 * scaleX) - knobWidth/2,
+        static_cast<int>(496 * scaleY) - knobHeight/2,
+        knobWidth,
+        knobHeight
+    );
+    feedbackKnob.setBounds(
+        static_cast<int>(642 * scaleX) - knobWidth/2,
+        static_cast<int>(496 * scaleY) - knobHeight/2,
+        knobWidth,
+        knobHeight
+    );
+    mixKnob.setBounds(
+        static_cast<int>(725 * scaleX) - knobWidth/2,
+        static_cast<int>(496 * scaleY) - knobHeight/2,
+        knobWidth,
+        knobHeight
+    );
+    outputKnob.setBounds(
+        static_cast<int>(808 * scaleX) - knobWidth/2,
+        static_cast<int>(496 * scaleY) - knobHeight/2,
+        knobWidth,
+        knobHeight
+    );
+
+    // Keyboard octave controls
+    octaveDownButton.setBounds(
+        static_cast<int>(597 * scaleX),
+        static_cast<int>(561 * scaleY),
+        static_cast<int>(30 * scaleX),
+        static_cast<int>(25 * scaleY)
+    );
+    octaveLabel.setBounds(
+        static_cast<int>(632 * scaleX),
+        static_cast<int>(561 * scaleY),
+        static_cast<int>(60 * scaleX),
+        static_cast<int>(25 * scaleY)
+    );
+    octaveUpButton.setBounds(
+        static_cast<int>(710 * scaleX),
+        static_cast<int>(561 * scaleY),
+        static_cast<int>(30 * scaleX),
+        static_cast<int>(25 * scaleY)
+    );
 
     // Position modulation buttons next to their associated knobs
     const int modButtonSize = static_cast<int>(16 * scale);
@@ -515,13 +651,6 @@ void PalaceAudioProcessorEditor::resized() {
     positionModButton(ParamIDs::voiceDecay, voiceDecayKnob);
     positionModButton(ParamIDs::voiceSustain, voiceSustainKnob);
     positionModButton(ParamIDs::voiceRelease, voiceReleaseKnob);
-
-    // Keyboard octave controls (bottom right)
-    const int octaveControlY = outputSectionY + static_cast<int>(30 * scaleY);
-    const int octaveControlX = getWidth() - margin - static_cast<int>(140 * scaleX);
-    octaveDownButton.setBounds(octaveControlX, octaveControlY, static_cast<int>(30 * scaleX), static_cast<int>(25 * scaleY));
-    octaveLabel.setBounds(octaveControlX + static_cast<int>(35 * scaleX), octaveControlY, static_cast<int>(60 * scaleX), static_cast<int>(25 * scaleY));
-    octaveUpButton.setBounds(octaveControlX + static_cast<int>(100 * scaleX), octaveControlY, static_cast<int>(30 * scaleX), static_cast<int>(25 * scaleY));
 }
 
 void PalaceAudioProcessorEditor::mouseDown(const juce::MouseEvent& event) {

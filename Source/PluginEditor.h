@@ -86,7 +86,7 @@ private:
     // Tape Disintegration
     OccultKnob damageKnob{"DAMAGE"};
     OccultKnob lifeKnob{"LIFE"};
-    juce::TextButton resetDamageButton{"Reset Damage"};
+    juce::TextButton resetDamageButton{"RESET"};
 
     // Effects
     OccultKnob reverbKnob{"REVERB"};
