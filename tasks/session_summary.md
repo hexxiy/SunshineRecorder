@@ -192,17 +192,27 @@ Documented in Source/Parser/README.md:
 
 ---
 
-## 📝 Git Commit
+## 📝 Git Commits
 
+**Commit 1: 4c603bd** - SVG-to-JUCE converter tool
 ```
-Commit: 4c603bd
-Author: Claude Sonnet 4.5 <noreply@anthropic.com>
-Date:   2026-02-05
-
 Add SVG-to-JUCE code converter tool and session documentation
-
 11 files changed, 5620 insertions(+)
 ```
+
+**Commit 2: 15622dc** - Session summary
+```
+Add session summary document
+1 file changed, 236 insertions(+)
+```
+
+**Commit 3: 23659b8** - Layout integration
+```
+Integrate SVG-based layout into PluginEditor
+2 files changed, 226 insertions(+), 97 deletions(-)
+```
+
+**Total**: 14 files changed, 6,085 insertions(+), 97 deletions(-)
 
 ---
 
