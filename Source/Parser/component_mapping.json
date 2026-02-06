@@ -1,0 +1,319 @@
+{
+  "config": {
+    "svg_width_mm": 225,
+    "svg_height_mm": 190,
+    "juce_width_px": 850,
+    "juce_height_px": 720
+  },
+  "components": {
+    "sample_gain_knob": {
+      "type": "OccultKnob",
+      "member": "sampleGainKnob",
+      "label": "GAIN",
+      "paramId": "ParamIDs::sampleGain",
+      "modulation": true
+    },
+    "knob_position": {
+      "type": "OccultKnob",
+      "member": "positionKnob",
+      "label": "POSITION",
+      "paramId": "ParamIDs::position",
+      "modulation": true
+    },
+    "knob_size": {
+      "type": "OccultKnob",
+      "member": "grainSizeKnob",
+      "label": "SIZE",
+      "paramId": "ParamIDs::grainSize",
+      "modulation": true
+    },
+    "knob_density": {
+      "type": "OccultKnob",
+      "member": "densityKnob",
+      "label": "DENSITY",
+      "paramId": "ParamIDs::density",
+      "modulation": true
+    },
+    "knob_pitch": {
+      "type": "OccultKnob",
+      "member": "pitchKnob",
+      "label": "PITCH",
+      "paramId": "ParamIDs::pitch",
+      "modulation": true
+    },
+    "knob_spray": {
+      "type": "OccultKnob",
+      "member": "sprayKnob",
+      "label": "SPRAY",
+      "paramId": "ParamIDs::spray",
+      "modulation": true
+    },
+    "knob_pan": {
+      "type": "OccultKnob",
+      "member": "panSpreadKnob",
+      "label": "PAN",
+      "paramId": "ParamIDs::panSpread",
+      "modulation": true
+    },
+    "knob_gatk": {
+      "type": "OccultKnob",
+      "member": "grainAttackKnob",
+      "label": "G.ATK",
+      "paramId": "ParamIDs::grainAttack",
+      "modulation": true
+    },
+    "knob_grel": {
+      "type": "OccultKnob",
+      "member": "grainReleaseKnob",
+      "label": "G.REL",
+      "paramId": "ParamIDs::grainRelease",
+      "modulation": true
+    },
+    "knob_attack": {
+      "type": "OccultKnob",
+      "member": "voiceAttackKnob",
+      "label": "ATTACK",
+      "paramId": "ParamIDs::voiceAttack",
+      "modulation": true
+    },
+    "knob_decay": {
+      "type": "OccultKnob",
+      "member": "voiceDecayKnob",
+      "label": "DECAY",
+      "paramId": "ParamIDs::voiceDecay",
+      "modulation": true
+    },
+    "knob_sustain": {
+      "type": "OccultKnob",
+      "member": "voiceSustainKnob",
+      "label": "SUSTAIN",
+      "paramId": "ParamIDs::voiceSustain",
+      "modulation": true
+    },
+    "knob_release": {
+      "type": "OccultKnob",
+      "member": "voiceReleaseKnob",
+      "label": "RELEASE",
+      "paramId": "ParamIDs::voiceRelease",
+      "modulation": true
+    },
+    "knob_lfo_rate": {
+      "type": "OccultKnob",
+      "member": "lfoRateKnob",
+      "label": "RATE",
+      "paramId": "ParamIDs::lfoRate",
+      "modulation": true
+    },
+    "knob_lfo_amount": {
+      "type": "OccultKnob",
+      "member": "lfoAmountKnob",
+      "label": "AMOUNT",
+      "paramId": "ParamIDs::lfoAmount",
+      "modulation": true
+    },
+    "knob_delay": {
+      "type": "OccultKnob",
+      "member": "delayTimeKnob",
+      "label": "DELAY",
+      "paramId": "ParamIDs::delayTime",
+      "modulation": true
+    },
+    "knob_flutter": {
+      "type": "OccultKnob",
+      "member": "flutterKnob",
+      "label": "FLUTTER",
+      "paramId": "ParamIDs::flutter",
+      "modulation": true
+    },
+    "knob_hiss": {
+      "type": "OccultKnob",
+      "member": "hissKnob",
+      "label": "HISS",
+      "paramId": "ParamIDs::tapeHiss",
+      "modulation": true
+    },
+    "knob_damage": {
+      "type": "OccultKnob",
+      "member": "damageKnob",
+      "label": "DAMAGE",
+      "paramId": "ParamIDs::damage",
+      "modulation": true
+    },
+    "knob_life": {
+      "type": "OccultKnob",
+      "member": "lifeKnob",
+      "label": "LIFE",
+      "paramId": "ParamIDs::life",
+      "modulation": true
+    },
+    "knob_reverb": {
+      "type": "OccultKnob",
+      "member": "reverbKnob",
+      "label": "REVERB",
+      "paramId": "ParamIDs::reverb",
+      "modulation": true
+    },
+    "knob_feedback": {
+      "type": "OccultKnob",
+      "member": "feedbackKnob",
+      "label": "FEEDBACK",
+      "paramId": "ParamIDs::feedback",
+      "modulation": true
+    },
+    "knob_mix": {
+      "type": "OccultKnob",
+      "member": "mixKnob",
+      "label": "MIX",
+      "paramId": "ParamIDs::mix",
+      "modulation": true
+    },
+    "knob_output": {
+      "type": "OccultKnob",
+      "member": "outputKnob",
+      "label": "OUTPUT",
+      "paramId": "ParamIDs::output",
+      "modulation": true
+    },
+    "midi_indicator": {
+      "type": "Indicator",
+      "member": "midiIndicator",
+      "label": "MIDI INDICATOR"
+    },
+    "kbd_indicator": {
+      "type": "Indicator",
+      "member": "kbdIndicator",
+      "label": "KBD INDICATOR"
+    },
+    "kbd_key1": {
+      "type": "Unknown",
+      "member": "kbdKey1",
+      "label": "KBD KEY1"
+    },
+    "kbd_key2": {
+      "type": "Unknown",
+      "member": "kbdKey2",
+      "label": "KBD KEY2"
+    },
+    "kbd_key3": {
+      "type": "Unknown",
+      "member": "kbdKey3",
+      "label": "KBD KEY3"
+    },
+    "kbd_key4": {
+      "type": "Unknown",
+      "member": "kbdKey4",
+      "label": "KBD KEY4"
+    },
+    "zoom_in_btn": {
+      "type": "TextButton",
+      "member": "zoomInButton",
+      "label": "+"
+    },
+    "zoom_out_btn": {
+      "type": "TextButton",
+      "member": "zoomOutButton",
+      "label": "-"
+    },
+    "waveform_display": {
+      "type": "WaveformDisplay",
+      "member": "waveformDisplay",
+      "label": "WAVEFORM DISPLAY"
+    },
+    "load_btn": {
+      "type": "TextButton",
+      "member": "loadButton",
+      "label": "LOAD"
+    },
+    "grain_visualizer": {
+      "type": "GrainVisualizer",
+      "member": "grainVisualizer",
+      "label": "GRAIN VISUALIZER"
+    },
+    "mod_position": {
+      "type": "ModButton",
+      "member": "position",
+      "label": "POSITION"
+    },
+    "mod_size": {
+      "type": "ModButton",
+      "member": "size",
+      "label": "SIZE"
+    },
+    "mod_density": {
+      "type": "ModButton",
+      "member": "density",
+      "label": "DENSITY"
+    },
+    "mod_pitch": {
+      "type": "ModButton",
+      "member": "pitch",
+      "label": "PITCH"
+    },
+    "mod_spray": {
+      "type": "ModButton",
+      "member": "spray",
+      "label": "SPRAY"
+    },
+    "mod_pan": {
+      "type": "ModButton",
+      "member": "pan",
+      "label": "PAN"
+    },
+    "mod_gatk": {
+      "type": "ModButton",
+      "member": "gatk",
+      "label": "G.ATK"
+    },
+    "mod_grel": {
+      "type": "ModButton",
+      "member": "grel",
+      "label": "G.REL"
+    },
+    "mod_attack": {
+      "type": "ModButton",
+      "member": "attack",
+      "label": "ATTACK"
+    },
+    "mod_decay": {
+      "type": "ModButton",
+      "member": "decay",
+      "label": "DECAY"
+    },
+    "mod_sustain": {
+      "type": "ModButton",
+      "member": "sustain",
+      "label": "SUSTAIN"
+    },
+    "mod_release": {
+      "type": "ModButton",
+      "member": "release",
+      "label": "RELEASE"
+    },
+    "lfo_visualizer": {
+      "type": "LFOVisualizer",
+      "member": "lfoVisualizer",
+      "label": "LFO VISUALIZER"
+    },
+    "lfo_waveform_box": {
+      "type": "ComboBox",
+      "member": "lfoWaveformBox",
+      "label": "",
+      "paramId": "ParamIDs::lfoWaveform"
+    },
+    "reset_btn": {
+      "type": "TextButton",
+      "member": "resetDamageButton",
+      "label": "RESET"
+    },
+    "octave_down_btn": {
+      "type": "TextButton",
+      "member": "octaveDownButton",
+      "label": "-"
+    },
+    "octave_up_btn": {
+      "type": "TextButton",
+      "member": "octaveUpButton",
+      "label": "+"
+    }
+  }
+}
