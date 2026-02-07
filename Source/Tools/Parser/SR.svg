@@ -24,9 +24,9 @@
    inkscape:deskcolor="#191919"
    inkscape:document-units="mm"
    showgrid="false"
-   inkscape:zoom="1"
-   inkscape:cx="424.5"
-   inkscape:cy="319"
+   inkscape:zoom="0.5"
+   inkscape:cx="-149"
+   inkscape:cy="82"
    inkscape:window-width="1920"
    inkscape:window-height="1029"
    inkscape:window-x="0"
@@ -246,34 +246,35 @@
 
       <!-- Sample gain knob -->
       <circle
-   style="fill:#2a2a2a;fill-opacity:1;stroke:#3a3a3a;stroke-width:0.4"
+   style="fill:#2a2a2a;fill-opacity:1;stroke:#3a3a3a;stroke-width:0.826747"
    cx="198.84166"
-   cy="33.412498"
-   r="6"
-   id="sample_gain_knob" />
+   cy="31.370342"
+   id="sample_gain_knob"
+   r="12.40121" />
       <line
-   style="stroke:#d4a574;stroke-width:0.5"
+   style="stroke:#d4a574;stroke-width:1.03343"
    x1="198.84166"
-   y1="28.4125"
+   y1="21.036005"
    x2="198.84166"
-   y2="31.4125"
+   y2="27.236609"
    id="sample_gain_indicator" />
       <text
    xml:space="preserve"
-   style="font-size:2px;text-anchor:middle;fill:#888888"
-   x="198.84166"
-   y="43.412498"
+   style="font-size:2.41687px;text-anchor:middle;fill:#888888;stroke-width:1.20844"
+   x="198.63811"
+   y="49.243427"
    id="sample_gain_label"><tspan
-     id="tspan4">GAIN</tspan></text>
+     id="tspan4"
+     style="stroke-width:1.20844">GAIN</tspan></text>
 
       <!-- Grain visualizer -->
       <rect
-   style="fill:#0f0f0f;fill-opacity:1;stroke:#3a3a3a;stroke-width:0.3;rx:0.5"
+   style="fill:#0f0f0f;fill-opacity:1;stroke:#3a3a3a;stroke-width:0.613483"
    id="grain_visualizer"
-   width="15"
-   height="5"
-   x="167"
-   y="44" />
+   width="14.686517"
+   height="21.355267"
+   x="167.15674"
+   y="27.487991" />
       <circle
    style="fill:#d4a574;fill-opacity:0.6"
    cx="170"
@@ -689,7 +690,8 @@
 
       <!-- Row 2: Sustain, Release -->
       <g
-   id="adsr_row2">
+   id="adsr_row2"
+   style="display:inline">
         <!-- Sustain knob -->
         <circle
    style="fill:#2a2a2a;stroke:#3a3a3a;stroke-width:0.4"
@@ -705,20 +707,20 @@
    y2="90"
    id="knob_sustain_ind" />
         <text
-   style="font-size:2px;fill:#888888;text-anchor:middle"
+   style="font-size:2px;text-anchor:middle;fill:#888888"
    x="150"
    y="104"
    id="text27"><tspan
      id="tspan27">SUSTAIN</tspan></text>
         <rect
-   style="fill:#d4a574;fill-opacity:0.3;stroke:#d4a574;stroke-width:0.2;rx:0.5"
+   style="fill:#d4a574;fill-opacity:0.3;stroke:#d4a574;stroke-width:0.2"
    width="3.5"
    height="3.5"
    x="155"
    y="86"
    id="mod_sustain" />
         <text
-   style="font-size:2px;fill:#191919;font-weight:bold;text-anchor:middle"
+   style="font-weight:bold;font-size:2px;text-anchor:middle;fill:#191919"
    x="156.75"
    y="89"
    id="text28"><tspan
@@ -739,20 +741,20 @@
    y2="90"
    id="knob_release_ind" />
         <text
-   style="font-size:2px;fill:#888888;text-anchor:middle"
+   style="font-size:2px;text-anchor:middle;fill:#888888"
    x="172"
    y="104"
    id="text29"><tspan
      id="tspan29">RELEASE</tspan></text>
         <rect
-   style="fill:#d4a574;fill-opacity:0.3;stroke:#d4a574;stroke-width:0.2;rx:0.5"
+   style="fill:#d4a574;fill-opacity:0.3;stroke:#d4a574;stroke-width:0.2"
    width="3.5"
    height="3.5"
    x="177"
    y="86"
    id="mod_release" />
         <text
-   style="font-size:2px;fill:#191919;font-weight:bold;text-anchor:middle"
+   style="font-weight:bold;font-size:2px;text-anchor:middle;fill:#191919"
    x="178.75"
    y="89"
    id="text30"><tspan
